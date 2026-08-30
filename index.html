@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nico Roig — engineering notes</title>
-<meta name="description" content="Design decisions, trade-offs and one production incident from a multi-tenant AI messaging platform I built and ran.">
+<meta name="description" content="Two systems, the decisions behind them and their trade-offs: a multi-tenant AI messaging platform I built and ran, and a design study for predictive purchasing in restaurants.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23111'/%3E%3C/svg%3E">
 <style>
   :root{
@@ -23,17 +23,46 @@
   }
   main{max-width:var(--maxw); margin:0 auto; padding:3rem 1.15rem 4.5rem}
   h1{font-size:1.32rem; letter-spacing:-.01em; margin:0 0 .15rem; font-weight:650}
-  .role{color:var(--muted); font-size:.95rem; margin:0 0 2.4rem}
+  .role{color:var(--muted); font-size:.95rem; margin:0 0 1.9rem}
   h2{
     font-size:.76rem; text-transform:uppercase; letter-spacing:.09em; font-weight:650;
     color:var(--muted); margin:3rem 0 .9rem; padding-bottom:.45rem; border-bottom:1px solid var(--rule);
   }
   h3{font-size:1rem; font-weight:650; margin:2rem 0 .55rem; letter-spacing:-.005em}
   h3:first-of-type{margin-top:.2rem}
+  .panel > h2:first-child{margin-top:0}
   p{margin:0 0 .95rem}
   .lead{font-size:1.05rem}
   a{color:inherit; text-decoration:underline; text-underline-offset:2px; text-decoration-thickness:1px}
   a:hover{text-decoration-thickness:2px}
+  em{font-style:italic}
+
+  /* tabs (radio + :checked, no scripting required) */
+  .tabinput{position:absolute; opacity:0; width:1px; height:1px; margin:0}
+  .tabbar{display:flex; gap:0; border-bottom:1px solid var(--rule); margin:0 0 2rem}
+  .tabbar label{
+    display:block; padding:.5rem .9rem .6rem; cursor:pointer; color:var(--muted);
+    border-bottom:2px solid transparent; margin-bottom:-1px; font-size:.93rem; line-height:1.3;
+  }
+  .tabbar label b{display:block; font-weight:600}
+  .tabbar label i{
+    display:block; font-style:normal; font-size:.71rem; letter-spacing:.06em;
+    text-transform:uppercase; opacity:.8; margin-top:.15rem;
+  }
+  .tabbar label:first-child{padding-left:0}
+  .panel{display:none}
+  #t1:checked ~ .tabbar label[for="t1"],
+  #t2:checked ~ .tabbar label[for="t2"]{color:var(--fg); border-bottom-color:var(--fg)}
+  #t1:checked ~ #p1, #t2:checked ~ #p2{display:block}
+  #t1:focus-visible ~ .tabbar label[for="t1"],
+  #t2:focus-visible ~ .tabbar label[for="t2"]{outline:2px solid var(--fg); outline-offset:2px}
+  @media (max-width:26rem){ .tabbar label{padding-left:.55rem; padding-right:.55rem; font-size:.86rem} }
+
+  .tag{
+    display:inline-block; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted); border:1px solid var(--rule); border-radius:2px;
+    padding:.12rem .4rem; margin:0 0 .8rem;
+  }
 
   /* decision blocks */
   dl{margin:0 0 .2rem; display:grid; grid-template-columns:5.2rem 1fr; column-gap:1rem; row-gap:.5rem}
@@ -60,26 +89,37 @@
   .fig .dash{stroke-dasharray:4 4}
 
   ul{margin:0 0 .95rem; padding-left:1.1rem}
-  li{margin:0 0 .4rem}
+  li{margin:0 0 .55rem}
   .contact{margin:.4rem 0 0; font-size:1rem}
   .contact span{color:var(--muted); display:inline-block; width:4.6rem}
-  footer{margin-top:3rem; padding-top:1rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem}
+  footer{margin-top:2rem; padding-top:1rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem}
 </style>
 </head>
 <body>
 <main>
 
   <h1>Nico Roig</h1>
-  <p class="role">Co-founder and technical lead of a B2B product for real-estate agencies. This page is about how it was built, not what it used.</p>
+  <p class="role">Two systems and the decisions behind them. This is about how they are built and where they break, not what they use.</p>
+
+  <input class="tabinput" type="radio" name="tab" id="t1" checked>
+  <input class="tabinput" type="radio" name="tab" id="t2">
+
+  <nav class="tabbar">
+    <label for="t1"><b>AI messaging platform</b><i>Built · ran in production</i></label>
+    <label for="t2"><b>Restaurant purchasing</b><i>Design study · not built</i></label>
+  </nav>
+
+  <!-- ============================ PANEL 1 ============================ -->
+  <section class="panel" id="p1">
 
   <h2>What I built</h2>
-  <p class="lead">An AI assistant that answers an agency's own WhatsApp, Instagram and phone line: it qualifies leads, searches that agency's property catalogue, books viewings in their calendar, follows up, and hands the conversation to a human when it should. I designed and wrote the platform behind it — one codebase and one database serving every agency — and it ran a paying client's live inbound channel in production until we put the company on hold.</p>
+  <p class="lead">An AI assistant that answers a real-estate agency's own WhatsApp, Instagram and phone line: it qualifies leads, searches that agency's property catalogue, books viewings in their calendar, follows up, and hands the conversation to a human when it should. I was co-founder and technical lead; I designed and wrote the platform behind it — one codebase and one database serving every agency — and it ran a paying client's live inbound channel in production until we put the company on hold.</p>
 
   <h2>Architecture</h2>
   <div class="fig">
     <svg viewBox="0 0 640 424" role="img" aria-label="Flow diagram: inbound channels, signature check, routing to a client account, idempotent ingest, session layer, agent turn, delivery, durable job table, schedule, offline judge feeding back into the agent turn.">
       <defs>
-        <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+        <marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
           <path d="M0,0 L8,4 L0,8" stroke-width="1.2"/>
         </marker>
       </defs>
@@ -91,29 +131,29 @@
       <rect x="420" y="6" width="196" height="38" rx="2"/>
       <text x="518" y="30" text-anchor="middle">Inbound phone calls</text>
 
-      <line x1="106" y1="44" x2="106" y2="54" marker-end="url(#a)"/>
-      <line x1="312" y1="44" x2="312" y2="54" marker-end="url(#a)"/>
-      <line x1="518" y1="44" x2="518" y2="54" marker-end="url(#a)"/>
+      <line x1="106" y1="44" x2="106" y2="54" marker-end="url(#a1)"/>
+      <line x1="312" y1="44" x2="312" y2="54" marker-end="url(#a1)"/>
+      <line x1="518" y1="44" x2="518" y2="54" marker-end="url(#a1)"/>
 
       <rect x="8" y="56" width="608" height="36" rx="2"/>
       <text x="312" y="79" text-anchor="middle">Check signature, then resolve to one client account</text>
-      <line x1="312" y1="92" x2="312" y2="102" marker-end="url(#a)"/>
+      <line x1="312" y1="92" x2="312" y2="102" marker-end="url(#a1)"/>
 
       <rect x="8" y="104" width="608" height="36" rx="2"/>
       <text x="312" y="127" text-anchor="middle">Idempotent ingest — a redelivered webhook changes nothing</text>
-      <line x1="312" y1="140" x2="312" y2="150" marker-end="url(#a)"/>
+      <line x1="312" y1="140" x2="312" y2="150" marker-end="url(#a1)"/>
 
       <rect x="8" y="152" width="608" height="36" rx="2"/>
       <text x="312" y="175" text-anchor="middle">Session layer — may the assistant speak right now?</text>
-      <line x1="312" y1="188" x2="312" y2="198" marker-end="url(#a)"/>
+      <line x1="312" y1="188" x2="312" y2="198" marker-end="url(#a1)"/>
 
       <rect x="8" y="200" width="608" height="36" rx="2"/>
       <text x="312" y="223" text-anchor="middle">Agent turn — catalogue search, booking, CRM, escalation</text>
-      <line x1="312" y1="236" x2="312" y2="246" marker-end="url(#a)"/>
+      <line x1="312" y1="236" x2="312" y2="246" marker-end="url(#a1)"/>
 
       <rect x="8" y="248" width="608" height="36" rx="2"/>
       <text x="312" y="271" text-anchor="middle">Delivery — short messages; a failed send becomes a job</text>
-      <line x1="312" y1="284" x2="312" y2="300" marker-end="url(#a)"/>
+      <line x1="312" y1="284" x2="312" y2="300" marker-end="url(#a1)"/>
 
       <rect x="8" y="302" width="299" height="46" rx="2"/>
       <text x="157" y="322" text-anchor="middle" class="sm">Durable job table: retries, follow-ups,</text>
@@ -122,11 +162,11 @@
       <rect x="317" y="302" width="299" height="46" rx="2"/>
       <text x="466" y="322" text-anchor="middle" class="sm">Daily schedule, plus a drain after</text>
       <text x="466" y="338" text-anchor="middle" class="sm">every webhook already answered</text>
-      <line x1="317" y1="325" x2="307" y2="325" marker-end="url(#a)"/>
+      <line x1="317" y1="325" x2="307" y2="325" marker-end="url(#a1)"/>
 
       <rect x="8" y="376" width="608" height="36" rx="2"/>
       <text x="312" y="399" text-anchor="middle">Offline judge — grades threads, corrects that client only</text>
-      <path class="dash" d="M616,394 H630 V218 H620" marker-end="url(#a)"/>
+      <path class="dash" d="M616,394 H630 V218 H620" marker-end="url(#a1)"/>
     </svg>
   </div>
   <p>One deployment serves every client. A webhook arrives with no idea whose it is, so the signature is verified first and an external identifier resolves it to a client account; from there every read and write carries that account explicitly. Anything that has to survive a crash — an unsent message, a follow-up, a callback, a reactivation, a nightly review — is a row in a job table rather than a timer inside a request. Clients log into a panel that reads the same database through a different role, and never sees the engine's side of it.</p>
@@ -189,12 +229,152 @@
     <li>The platform is currently in standby: deliberately inert, nothing deleted, with a document recording what was switched off, in what order, and the exact reverse of each step.</li>
   </ul>
 
+  <footer>The system described here is proprietary. This section covers architecture and reasoning only — no code, client data or configuration.</footer>
+
+  </section>
+
+  <!-- ============================ PANEL 2 ============================ -->
+  <section class="panel" id="p2">
+
+  <h2>The system</h2>
+  <p class="tag">Design study — not built</p>
+  <p class="lead">Predictive purchasing for independent restaurants: predict what a kitchen will sell, turn that into what it has to buy from each supplier before each delivery cut-off, and put a ready-to-send order in front of the chef instead of a dashboard. What follows is the design I'd build and the reasoning behind each choice; nothing here has run in production, and the last section is what I'd have to validate before believing any of it.</p>
+  <p>The forecast is not the hard part. The hard parts are that the cost of a wrong number is wildly asymmetric and different for every ingredient, that the data a restaurant can actually produce is far worse than these systems assume, and that a single bad order in week one ends adoption permanently.</p>
+
+  <h2>Architecture</h2>
+  <div class="fig">
+    <svg viewBox="0 0 640 352" role="img" aria-label="Flow diagram: point of sale, invoices and physical counts feed normalisation; a covers forecast and a menu mix model produce dish demand; recipes explode it into ingredient demand; combined with stock position it produces order quantities per supplier and delivery day, reviewed by the chef, with overrides and counts feeding back into stock position.">
+      <defs>
+        <marker id="a2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8" stroke-width="1.2"/>
+        </marker>
+      </defs>
+
+      <rect x="8"   y="6" width="196" height="38" rx="2"/>
+      <text x="106" y="30" text-anchor="middle">Till / sales history</text>
+      <rect x="214" y="6" width="196" height="38" rx="2"/>
+      <text x="312" y="30" text-anchor="middle">Invoices, delivery notes</text>
+      <rect x="420" y="6" width="196" height="38" rx="2"/>
+      <text x="518" y="30" text-anchor="middle">Physical counts</text>
+
+      <line x1="106" y1="44" x2="106" y2="54" marker-end="url(#a2)"/>
+      <line x1="312" y1="44" x2="312" y2="54" marker-end="url(#a2)"/>
+      <line x1="518" y1="44" x2="518" y2="54" marker-end="url(#a2)"/>
+
+      <rect x="8" y="56" width="608" height="36" rx="2"/>
+      <text x="312" y="79" text-anchor="middle">Normalise — one ingredient across supplier names, packs and units</text>
+      <line x1="157" y1="92" x2="157" y2="102" marker-end="url(#a2)"/>
+      <line x1="466" y1="92" x2="466" y2="102" marker-end="url(#a2)"/>
+
+      <rect x="8" y="104" width="299" height="46" rx="2"/>
+      <text x="157" y="124" text-anchor="middle" class="sm">Covers forecast — weekday,</text>
+      <text x="157" y="140" text-anchor="middle" class="sm">calendar, local events</text>
+      <rect x="317" y="104" width="299" height="46" rx="2"/>
+      <text x="466" y="124" text-anchor="middle" class="sm">Menu mix — share of</text>
+      <text x="466" y="140" text-anchor="middle" class="sm">covers per dish</text>
+      <line x1="157" y1="150" x2="157" y2="160" marker-end="url(#a2)"/>
+      <line x1="466" y1="150" x2="466" y2="160" marker-end="url(#a2)"/>
+
+      <rect x="8" y="162" width="608" height="36" rx="2"/>
+      <text x="312" y="185" text-anchor="middle">Dish demand → recipes → ingredient demand, as a distribution</text>
+      <line x1="312" y1="198" x2="312" y2="208" marker-end="url(#a2)"/>
+
+      <rect x="8" y="210" width="608" height="36" rx="2"/>
+      <text x="312" y="233" text-anchor="middle">Stock position — last count + receipts − use ± measured drift</text>
+      <line x1="312" y1="246" x2="312" y2="256" marker-end="url(#a2)"/>
+
+      <rect x="8" y="258" width="608" height="36" rx="2"/>
+      <text x="312" y="281" text-anchor="middle">Quantity — asymmetric cost quantile, shelf life, pack rounding</text>
+      <line x1="312" y1="294" x2="312" y2="304" marker-end="url(#a2)"/>
+
+      <rect x="8" y="306" width="608" height="36" rx="2"/>
+      <text x="312" y="329" text-anchor="middle">Order per supplier and delivery day — the chef reviews and sends</text>
+      <path class="dash" d="M616,324 H630 V228 H620" marker-end="url(#a2)"/>
+    </svg>
+  </div>
+  <p>Sales, purchase documents and counts arrive in three different vocabularies and are reduced to one ingredient list first, because everything downstream is arithmetic on quantities and arithmetic on mismatched units is how this kind of system produces a catastrophe. Demand is predicted in two pieces and recombined. Stock is an estimate that is corrected, not a fact that is read. The output is an order per supplier for a specific delivery day, and the chef's edits to it come back in as the most valuable signal the system gets.</p>
+
+  <h2>Engineering decisions</h2>
+
+  <h3>1. Forecast covers and menu mix, not ingredients</h3>
+  <dl>
+    <dt>Problem</dt><dd>A single dish sells a handful of units a week, restaurant history is short, and menus change. Per-item series are sparse, noisy and keep being invalidated.</dd>
+    <dt>Options</dt><dd>Predict each ingredient's consumption directly — dense and simple, but blind to menu changes and unable to explain a single number. Predict each dish independently — explainable, hopelessly sparse. Or decompose.</dd>
+    <dt>Chose</dt><dd>Decompose into how many people eat and what they order. Covers is a dense, well-behaved series driven by day of week, calendar, holidays and local events; menu mix is a set of slowly-moving shares. Ingredient demand is covers times mix, exploded through recipes. This survives a menu change, because a new dish inherits a share from its category until it has its own history, and it produces the sentence the chef needs to trust the number: four kilos of onion because we expect sixty covers and about a fifth of them take the burger.</dd>
+    <dt>Cost</dt><dd>Two models to keep honest instead of one, and the errors compound — a covers error moves every ingredient at once, in the same direction. That compounding is precisely why the order step below needs safety logic of its own rather than trusting the forecast it is handed.</dd>
+  </dl>
+
+  <h3>2. The objective is the cost of being wrong, not accuracy</h3>
+  <dl>
+    <dt>Problem</dt><dd>Over-ordering fresh fish is a total loss in two days. Under-ordering it takes a dish off the menu at nine in the evening. Over-ordering rice costs shelf space. One accuracy metric averages all of that into a number nobody can act on.</dd>
+    <dt>Options</dt><dd>Minimise a symmetric error and add a flat safety margin on top, or optimise the order quantity directly against a per-ingredient asymmetric cost.</dd>
+    <dt>Chose</dt><dd>The model outputs a distribution rather than a point, and the quantity is the quantile where the expected cost of running out equals the expected cost of throwing away — capped by how much of an over-order would actually survive to be used, given shelf life and turnover. Restaurants cannot give you those two costs in euros, so they are never asked: an ingredient is classified once as fresh and central to the menu, fresh but substitutable, or ambient, and that maps to a starting service level with a single control per item to run leaner or safer.</dd>
+    <dt>Cost</dt><dd>The system can no longer be summarised by one error number, and the quantity being optimised isn't directly observable — you only ever see waste and stockouts, both of which are under-recorded. So the evaluation has to be designed as deliberately as the model: recorded stockouts, waste measured at count time, and cash tied up in stock, tracked separately per ingredient class rather than averaged.</dd>
+  </dl>
+
+  <h3>3. Theoretical stock is a drifting estimate; a count is a measurement</h3>
+  <dl>
+    <dt>Problem</dt><dd>Depletion computed from sales assumes every gram ends up in a dish. Waste, over-portioning, staff meals and theft mean the number on screen walks away from the number on the shelf, and it does it silently.</dd>
+    <dt>Options</dt><dd>Perpetual inventory from till data — cheap and confidently wrong within weeks. Count everything constantly — accurate and nobody does it. Or treat the two as different kinds of evidence.</dd>
+    <dt>Chose</dt><dd>Each physical count carries two pieces of information: it resets the level, and the gap between what should have been consumed and what actually was estimates that ingredient's drift, which then corrects future recipe quantities. Because counts are entered by tired people at closing time, a count implying impossible consumption is not absorbed silently — it is flagged for confirmation, since one mistyped number that quietly becomes a drift rate poisons every future order for that item.</dd>
+    <dt>Cost</dt><dd>Accuracy is capped by an operational habit I don't control. So the design has to still work when counting stops: with no recent count it orders against consumption rate to a target number of days of cover and says so on the order line, instead of pretending to know what is in the walk-in.</dd>
+  </dl>
+
+  <h3>4. Where a language model belongs here, and where it does not</h3>
+  <dl>
+    <dt>Problem</dt><dd>The messy half of this product isn't prediction. The same tomato arrives as three different strings on three suppliers' invoices, sold by the case at variable weights, and recipes live in a chef's head or in a spreadsheet with its own vocabulary.</dd>
+    <dt>Options</dt><dd>Put a language model at the centre because that is what the category is sold as, or use it only where the input is unstructured and the output can be checked by a human once.</dd>
+    <dt>Chose</dt><dd>Nothing generative anywhere near the quantity. Demand is a statistical problem with a hard cost function, and a purchase order has to be auditable and reproducible: a component that cannot be interrogated about why it asked for thirty kilos of anything has no business emitting that number. The model earns its place at the edges — reading invoices and delivery notes, mapping supplier line items onto ingredients, turning a written recipe into quantities. Those are extraction and matching problems where it beats hand-written rules, and where every output lands in front of a person as a proposed mapping that is confirmed once and reused after that.</dd>
+    <dt>Cost</dt><dd>Two systems instead of one, and the unglamorous one is where most of the work is. It is also where a silent error does the most damage, which is what the next decision is for.</dd>
+  </dl>
+
+  <h3>5. Units are where this kind of system produces a catastrophe</h3>
+  <dl>
+    <dt>Problem</dt><dd>Recipes in grams, purchases by the case, suppliers quoting kilos with variable pack weights, and the word "unit" meaning different things to the chef and to the supplier. The characteristic failure here is not five percent out; it is ten times out.</dd>
+    <dt>Options</dt><dd>One global unit table with conversions inferred where they're missing, or conversions bound to the exact thing they describe and refused when unknown.</dd>
+    <dt>Chose</dt><dd>A conversion belongs to a triple — ingredient, supplier, pack — and is established when that supplier is onboarded, never inferred at order time. On top of it, arithmetic that can be checked is checked: any order line more than a few times the trailing median for that ingredient is blocked and shown to a person rather than sent, whatever the model produced. The rule sits outside the model on purpose, so that improving the forecast can never remove the guard.</dd>
+    <dt>Cost</dt><dd>More friction onboarding a supplier, and a rule that will occasionally block a genuinely large order. A blocked party order once a season is a far smaller problem than one order for ten times the fish, and the asymmetry is the whole point.</dd>
+  </dl>
+
+  <h2>What I'd expect to break, and what the design does about it</h2>
+
+  <p><strong>The first four weeks.</strong> A new restaurant has no history, and one confident stockout in week one ends adoption for good. So it starts in shadow: the system produces its order, the chef orders the way they always have, and both are recorded — nothing is switched on until that specific site's errors have been measured. Until then the forecast falls back through a hierarchy, from this dish to its category here to the category across sites, with the blend weight tied to how much history actually exists, and any line resting on a borrowed prior says so. If a fleet-wide prior is used at all it is the shape of a week, never one restaurant's volumes: pooling across paying clients is a commercial and legal problem before it is a modelling one.</p>
+
+  <p><strong>Silent drift.</strong> The dangerous failure isn't a wrong number, it's a confident one. Every ingredient carries the running gap between predicted and counted consumption; when the variance of that gap crosses a threshold, the item is demoted — it stops producing an automatic quantity and starts asking to be counted before it is ordered. A system that knows which of its own outputs to stop trusting is worth more than one that is slightly more accurate on average, because the second kind fails without telling anyone.</p>
+
+  <p><strong>The order nobody reads.</strong> Once the tool is trusted, orders get accepted without checking — that is the point of building it, and it is also the moment a bad line ships. Which is why the last guards are deterministic and sit outside the forecast: the trailing-median cap, minimum order values and pack rounding applied last so the number the chef sees is the number that gets sent, and a hard rule that a line whose ingredient has neither a recent count nor a confirmed pack conversion cannot go out automatically at all.</p>
+
+  <h2>What I'd have to validate before believing any of it</h2>
+  <ul>
+    <li>That covers are genuinely predictable at a single independent site, and not just across a fleet. The entire decomposition rests on that one series being well-behaved; if it isn't, the design is wrong at the root rather than needing tuning.</li>
+    <li>That restaurants count often enough for drift estimation to converge before it goes stale. If real counting cadence is monthly, drift is noise and the fallback path becomes the main path — which changes what the product is.</li>
+    <li>What a stockout actually costs, given it is barely recorded. Every order quantity is a ratio of two costs, one of which nobody measures, so the first version has to be deliberately conservative and instrumented to estimate that number rather than assume it.</li>
+  </ul>
+
+  </section>
+
   <h2>Contact</h2>
   <p class="contact"><span>Email</span> <a href="mailto:nicoroigmeseguer@gmail.com">nicoroigmeseguer@gmail.com</a></p>
   <p class="contact"><span>GitHub</span> <a href="https://github.com/nicoroig-ai">github.com/nicoroig-ai</a></p>
 
-  <footer>The system described here is proprietary. This page covers architecture and reasoning only — no code, client data or configuration.</footer>
-
 </main>
+<script>
+(function(){
+  try{
+    var map = {"#messaging":"t1","#restaurant":"t2"};
+    var back = {t1:"#messaging", t2:"#restaurant"};
+    var id = map[location.hash];
+    if(id){ document.getElementById(id).checked = true; }
+    ["t1","t2"].forEach(function(k){
+      document.getElementById(k).addEventListener("change", function(){
+        if(this.checked){
+          history.replaceState(null, "", back[k]);
+          window.scrollTo(0,0);
+        }
+      });
+    });
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
