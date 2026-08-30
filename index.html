@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nico Roig — engineering notes</title>
+<meta name="description" content="Design decisions, trade-offs and one production incident from a multi-tenant AI messaging platform I built and ran.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23111'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#fbfbfa; --fg:#16181d; --muted:#5c6169; --rule:#dcdcd8; --box:#ffffff;
+    --maxw:44rem;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#14161a; --fg:#e6e7e9; --muted:#9aa0a8; --rule:#2c3038; --box:#191c21; }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-feature-settings:"kern" 1;
+  }
+  main{max-width:var(--maxw); margin:0 auto; padding:3rem 1.15rem 4.5rem}
+  h1{font-size:1.32rem; letter-spacing:-.01em; margin:0 0 .15rem; font-weight:650}
+  .role{color:var(--muted); font-size:.95rem; margin:0 0 2.4rem}
+  h2{
+    font-size:.76rem; text-transform:uppercase; letter-spacing:.09em; font-weight:650;
+    color:var(--muted); margin:3rem 0 .9rem; padding-bottom:.45rem; border-bottom:1px solid var(--rule);
+  }
+  h3{font-size:1rem; font-weight:650; margin:2rem 0 .55rem; letter-spacing:-.005em}
+  h3:first-of-type{margin-top:.2rem}
+  p{margin:0 0 .95rem}
+  .lead{font-size:1.05rem}
+  a{color:inherit; text-decoration:underline; text-underline-offset:2px; text-decoration-thickness:1px}
+  a:hover{text-decoration-thickness:2px}
+
+  /* decision blocks */
+  dl{margin:0 0 .2rem; display:grid; grid-template-columns:5.2rem 1fr; column-gap:1rem; row-gap:.5rem}
+  dt{
+    font-size:.7rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted);
+    font-weight:650; padding-top:.32rem;
+  }
+  dd{margin:0}
+  @media (max-width:34rem){
+    dl{grid-template-columns:1fr; row-gap:.2rem}
+    dt{padding-top:.7rem}
+  }
+
+  /* diagram */
+  .fig{
+    border:1px solid var(--rule); background:var(--box); border-radius:3px;
+    padding:.7rem; margin:0 0 1.1rem; overflow-x:auto;
+  }
+  .fig svg{display:block; width:100%; min-width:30rem; height:auto}
+  .fig text{fill:var(--fg); font-family:inherit; font-size:14px}
+  .fig .sm{fill:var(--muted); font-size:12.5px}
+  .fig rect{fill:none; stroke:var(--rule); stroke-width:1.2}
+  .fig line,.fig path{stroke:var(--muted); stroke-width:1.2; fill:none}
+  .fig .dash{stroke-dasharray:4 4}
+
+  ul{margin:0 0 .95rem; padding-left:1.1rem}
+  li{margin:0 0 .4rem}
+  .contact{margin:.4rem 0 0; font-size:1rem}
+  .contact span{color:var(--muted); display:inline-block; width:4.6rem}
+  footer{margin-top:3rem; padding-top:1rem; border-top:1px solid var(--rule); color:var(--muted); font-size:.85rem}
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Nico Roig</h1>
+  <p class="role">Co-founder and technical lead of a B2B product for real-estate agencies. This page is about how it was built, not what it used.</p>
+
+  <h2>What I built</h2>
+  <p class="lead">An AI assistant that answers an agency's own WhatsApp, Instagram and phone line: it qualifies leads, searches that agency's property catalogue, books viewings in their calendar, follows up, and hands the conversation to a human when it should. I designed and wrote the platform behind it — one codebase and one database serving every agency — and it ran a paying client's live inbound channel in production until we put the company on hold.</p>
+
+  <h2>Architecture</h2>
+  <div class="fig">
+    <svg viewBox="0 0 640 424" role="img" aria-label="Flow diagram: inbound channels, signature check, routing to a client account, idempotent ingest, session layer, agent turn, delivery, durable job table, schedule, offline judge feeding back into the agent turn.">
+      <defs>
+        <marker id="a" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8" stroke-width="1.2"/>
+        </marker>
+      </defs>
+
+      <rect x="8"   y="6" width="196" height="38" rx="2"/>
+      <text x="106" y="30" text-anchor="middle">WhatsApp / Instagram</text>
+      <rect x="214" y="6" width="196" height="38" rx="2"/>
+      <text x="312" y="30" text-anchor="middle">Ad lead forms</text>
+      <rect x="420" y="6" width="196" height="38" rx="2"/>
+      <text x="518" y="30" text-anchor="middle">Inbound phone calls</text>
+
+      <line x1="106" y1="44" x2="106" y2="54" marker-end="url(#a)"/>
+      <line x1="312" y1="44" x2="312" y2="54" marker-end="url(#a)"/>
+      <line x1="518" y1="44" x2="518" y2="54" marker-end="url(#a)"/>
+
+      <rect x="8" y="56" width="608" height="36" rx="2"/>
+      <text x="312" y="79" text-anchor="middle">Check signature, then resolve to one client account</text>
+      <line x1="312" y1="92" x2="312" y2="102" marker-end="url(#a)"/>
+
+      <rect x="8" y="104" width="608" height="36" rx="2"/>
+      <text x="312" y="127" text-anchor="middle">Idempotent ingest — a redelivered webhook changes nothing</text>
+      <line x1="312" y1="140" x2="312" y2="150" marker-end="url(#a)"/>
+
+      <rect x="8" y="152" width="608" height="36" rx="2"/>
+      <text x="312" y="175" text-anchor="middle">Session layer — may the assistant speak right now?</text>
+      <line x1="312" y1="188" x2="312" y2="198" marker-end="url(#a)"/>
+
+      <rect x="8" y="200" width="608" height="36" rx="2"/>
+      <text x="312" y="223" text-anchor="middle">Agent turn — catalogue search, booking, CRM, escalation</text>
+      <line x1="312" y1="236" x2="312" y2="246" marker-end="url(#a)"/>
+
+      <rect x="8" y="248" width="608" height="36" rx="2"/>
+      <text x="312" y="271" text-anchor="middle">Delivery — short messages; a failed send becomes a job</text>
+      <line x1="312" y1="284" x2="312" y2="300" marker-end="url(#a)"/>
+
+      <rect x="8" y="302" width="299" height="46" rx="2"/>
+      <text x="157" y="322" text-anchor="middle" class="sm">Durable job table: retries, follow-ups,</text>
+      <text x="157" y="338" text-anchor="middle" class="sm">callbacks, reactivation, reviews</text>
+
+      <rect x="317" y="302" width="299" height="46" rx="2"/>
+      <text x="466" y="322" text-anchor="middle" class="sm">Daily schedule, plus a drain after</text>
+      <text x="466" y="338" text-anchor="middle" class="sm">every webhook already answered</text>
+      <line x1="317" y1="325" x2="307" y2="325" marker-end="url(#a)"/>
+
+      <rect x="8" y="376" width="608" height="36" rx="2"/>
+      <text x="312" y="399" text-anchor="middle">Offline judge — grades threads, corrects that client only</text>
+      <path class="dash" d="M616,394 H630 V218 H620" marker-end="url(#a)"/>
+    </svg>
+  </div>
+  <p>One deployment serves every client. A webhook arrives with no idea whose it is, so the signature is verified first and an external identifier resolves it to a client account; from there every read and write carries that account explicitly. Anything that has to survive a crash — an unsent message, a follow-up, a callback, a reactivation, a nightly review — is a row in a job table rather than a timer inside a request. Clients log into a panel that reads the same database through a different role, and never sees the engine's side of it.</p>
+
+  <h2>Engineering decisions</h2>
+
+  <h3>1. Isolating one client's data from another's</h3>
+  <dl>
+    <dt>Problem</dt><dd>Several agencies, all of their leads' private conversations, one product.</dd>
+    <dt>Options</dt><dd>A separate database per client — physical isolation, more surface to operate and migrate — or one pooled database with row-level security.</dd>
+    <dt>Chose</dt><dd>Pooled, with two different enforcement paths. The panel authenticates as the end user and row-level security confines it, including a second level inside a client: a sales agent only sees the contacts assigned to them, enforced in the database rather than in the UI, so a missing filter in a query can't widen it. The engine deliberately runs with a role that bypasses row-level security, because a webhook arrives before anyone knows whose it is. The tables holding provider tokens and per-client API keys have row-level security on with no policy at all for the panel's role: zero rows, always.</dd>
+    <dt>Cost</dt><dd>On the engine side isolation is a discipline, not a guarantee — one forgotten account filter would cross clients. That is why catalogue search is a single shared function that takes the account as its first argument, instead of a query written at each call site.</dd>
+  </dl>
+
+  <h3>2. Durable work lives in the database</h3>
+  <dl>
+    <dt>Problem</dt><dd>Retries, follow-ups, callbacks, reactivations and nightly reviews can't live in the request that started them.</dd>
+    <dt>Options</dt><dd>The hosting platform's durable-workflow product, or a job table in the Postgres I already had.</dd>
+    <dt>Chose</dt><dd>The table. Work is claimed atomically with skip-locked; the attempt counter increments at claim time, so an attempt that kills the process still counts against its budget; a lease reclaims work abandoned by a dead worker; failures back off exponentially into a dead-letter state; and the idempotency key is unique only across active states, so a job can legitimately be scheduled again once the previous one is done. The deciding reason was that the client panel has to show this work as inspectable rows, and finding cold leads is a scan of the same tables.</dd>
+    <dt>Cost</dt><dd>I gave up the platform's own backoff and orchestration primitives, and the hosting plan refuses schedules more frequent than daily — it fails the deploy rather than degrading it. So the schedule is only a floor: real progress comes from draining a few jobs after each webhook has already been answered, which means throughput follows traffic.</dd>
+  </dl>
+
+  <h3>3. One person, several channels</h3>
+  <dl>
+    <dt>Problem</dt><dd>The same person writes on chat, then phones in, and a human colleague sometimes replies from their own handset. Four possible speakers on one thread, and any two of them talking at once looks broken to the client.</dd>
+    <dt>Options</dt><dd>Keep state per channel and per conversation, or make the person the unit and arbitrate between channels — and if arbitrating, do it with a model or in code.</dd>
+    <dt>Chose</dt><dd>The person is the unit of memory; arbitration is code. Chat reads summaries of past calls, a call opens with a compact summary of the chat. Identity is the phone number normalised to one canonical form at every entry point, which mattered because the telephony carrier hands the caller id in national format while chat delivers it with the country code — the missing prefix is derived from the other end of the call rather than hardcoded. Then the guards: don't answer in chat while the person is on a call; pausing for a human pauses them on every channel, not just the thread they wrote in; and when a colleague answers from their handset the assistant steps back and a later job asks the model whether to resume, defaulting to staying quiet.</dd>
+    <dt>Cost</dt><dd>Guards on every path that can produce a message, and a conservative default that sometimes leaves the assistant paused longer than it needed to be. I preferred that to two of them replying to the same person.</dd>
+  </dl>
+
+  <h3>4. The context window is where both the cost and the invention live</h3>
+  <dl>
+    <dt>Problem</dt><dd>Everything expensive and everything dangerous happens in the same place: what the model is shown, and what it is allowed to say about it.</dd>
+    <dt>Options</dt><dd>Give the model more context and more freedom and correct the output afterwards, or narrow the input and constrain the output.</dd>
+    <dt>Chose</dt><dd>Narrow both. Old history is folded into a rolling per-person summary behind a watermark instead of being replayed. A burst of messages from a lead becomes one turn rather than one turn per line. Listing photos never enter the context at all: the model cites a reference, and a delivery layer reads that reference out of the finished message and attaches the right images. On the output side, no specific listing, price or reference may be mentioned unless the search tool returned it in that same turn; outside the messaging platform's 24-hour service window the model picks a key from a closed catalogue of pre-approved templates and may answer "none", but never writes that copy. Commercial preference — showing the agency's own listings ahead of partner stock — is applied as ordering after the filters, never as a filter, so it can change what a lead sees first but not what matches.</dd>
+    <dt>Cost</dt><dd>More machinery between the message arriving and the model seeing it, and that machinery is invisible until output quality drops (see below). Features that depend on approved templates ship live and do nothing until a client's catalogue is approved.</dd>
+  </dl>
+
+  <h3>5. Grading the assistant, and letting it correct itself within limits</h3>
+  <dl>
+    <dt>Problem</dt><dd>Quality is invisible. Nobody reads the conversations, and by the time a client complains the damage is already done.</dd>
+    <dt>Options</dt><dd>Sample conversations by hand, or have a model grade them — and if it grades them, decide whether anything is allowed to change automatically.</dd>
+    <dt>Chose</dt><dd>An offline judge scores each person's thread against the rules the assistant is actually operating under for that client, and labels failures from a fixed nine-category vocabulary; the most severe is mentioning a listing the search tool never returned. Two things mattered more than the scoring itself: the judge is calibrated to reserve the worst verdict for material failures, because a grader that finds something wrong in every conversation is noise; and the transcript is author-aware, so messages a human colleague wrote are marked as not the assistant's and are not held against it. A bad verdict may produce a correction, but never in the shared prompt — corrections are rows scoped to one client, deduplicated by failure category so recurrence reinforces rather than accumulates, capped per day and in total, with a cooldown and a probation period, and reversible by deleting the row.</dd>
+    <dt>Cost</dt><dd>It is deliberately slow to change anything, and off unless a client is opted in, so it only helps where someone turned it on. One practical trap: the provider endpoint this runs on rejects numeric bounds in structured-output schemas, which failed the whole evaluation silently — the range is asked for in the prompt and clamped in code instead.</dd>
+  </dl>
+
+  <h2>A production incident, start to finish</h2>
+  <p><strong>Shipping listing photos made the assistant forget prices — over the phone.</strong></p>
+  <p>Photos were the obvious next feature: a listing without images doesn't sell. They were built so the model never handles them — it writes a message citing a reference, and the delivery layer looks up that listing and sends its images behind the text. No extra model call, no URLs in the context.</p>
+  <p>The symptom appeared somewhere else. On calls, the assistant could describe a property but stopped being able to say what it cost. Chat looked fine.</p>
+  <p>Every message sent is persisted, images included — an image record whose body is just a URL. The conversation history the model reads is a fixed-size window over the person's recent messages across all channels. Sending six photos wrote six records. The window filled with URLs and pushed out the listing card, which is where the price was. The voice side receives a compressed slice of that same window, so it ran out of the number first, and only there. The feature that delivered the photos had evicted the data the photos were about.</p>
+  <p>The fix had two parts. Image records whose body is only a URL are excluded from the window — they are delivery bookkeeping, not conversation, while images sent <em>by</em> the client keep their description because that is conversation. And because filtering shrinks the window, the query now over-fetches and trims, so the window is still N real messages rather than N minus however many photos happened to be sent. Separately, the voice side was given the ability to look a listing up by its reference mid-call, so the number can be recovered instead of remembered.</p>
+  <p>What I took from it: any record written into a shared bounded resource has to declare whether it is conversation or bookkeeping, because the cost of getting that wrong shows up in a different feature, on a different channel, as a quality problem rather than an error. The same reasoning fixed the photo counter — it is kept per person rather than per conversation, so someone who comes back a week later on another channel isn't sent the same photos again.</p>
+
+  <h2>A process failure, and what I know is missing</h2>
+  <p>Three finished features sat dead in production: re-engagement of cold leads, alerts when matching stock arrives, and the quality judge. Each waits behind a per-client switch or an external dependency, and nobody remembered to turn them on. The fix wasn't code. It's a diagnostic that walks the whole chain for one client — panel access, channels, provider permissions, approved templates, catalogue, which switches are on — and prints both what is broken and what is built but off, with what each one needs. The rule that came with it is that a feature isn't finished until it appears there. This domain fails silently by default: a missing subscription, a permission granted to a business but not to the token that has to use it, an unverified account. None of them raise an error. They just mean no message ever arrives.</p>
+  <ul>
+    <li>There are no automated tests. Type-checking and the build are the gate, and for the parts with real branching — the queue, the session guards — that isn't enough.</li>
+    <li>Signature verification for the voice provider is written but switched off until it can be validated against a real request. The security notes state exactly what that leaves exposed and that it has to be on before the line is public, rather than leaving it as a comfortable unknown.</li>
+    <li>The platform is currently in standby: deliberately inert, nothing deleted, with a document recording what was switched off, in what order, and the exact reverse of each step.</li>
+  </ul>
+
+  <h2>Contact</h2>
+  <p class="contact"><span>Email</span> <a href="mailto:nicoroigmeseguer@gmail.com">nicoroigmeseguer@gmail.com</a></p>
+  <p class="contact"><span>GitHub</span> <a href="https://github.com/nicoroig-ai">github.com/nicoroig-ai</a></p>
+
+  <footer>The system described here is proprietary. This page covers architecture and reasoning only — no code, client data or configuration.</footer>
+
+</main>
+</body>
+</html>
