@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tax-law research — Nico Roig</title>
+<meta name="description" content="A desktop tool that replaced a manual browser workflow for tax professionals, built to pass corporate security review, and the decisions behind it.">
+<link rel="canonical" href="https://nicoroig.dev/tax/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nico Roig">
+<meta property="og:title" content="Tax-law research — Nico Roig">
+<meta property="og:description" content="A desktop tool that replaced a manual browser workflow for tax professionals, built to pass corporate security review, and the decisions behind it.">
+<meta property="og:url" content="https://nicoroig.dev/tax/">
+<meta property="og:image" content="https://nicoroig.dev/assets/og/tax.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preload" href="/assets/fonts/archivo-latin-standard-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
+</head>
+<body data-book="tax">
+<a class="skip" href="#content">Skip to the write-up</a>
+<header class="cover">
+  <div class="cover-top">
+    <a class="back" href="/"><svg class="arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 12H4M10.5 5.5 4 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg><span>Nico Roig</span></a>
+    <span class="plate">NR-03</span>
+  </div>
+  <div class="cover-body">
+    <h1>Tax-law research</h1>
+    <p class="cover-result">Replaced a manual browser workflow for tax professionals, on a locked-down corporate machine with nothing installed and no credentials.</p>
+    <p class="cover-meta"><span>Tax &amp; legal</span><span>Shipped</span><span>1,054 words</span></p>
+  </div>
+</header>
+<div class="doc">
+  <nav class="toc" aria-label="On this page">
+    <p class="toc-title">Contents</p>
+    <ol>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</a></li><li class="toc-sub"><a href="#2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</a></li><li class="toc-sub"><a href="#3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</a></li><li class="toc-sub"><a href="#4-built-to-be-approved-not-installed">4. Built to be approved, not installed</a></li><li><a href="#where-the-model-isn-t">Where the model isn't</a></li>
+    </ol>
+  </nav>
+  <main id="content">
+<section id="what-i-built">
+<h2>What I built</h2>
+<p class="lead">A desktop tool for tax professionals that replaces a manual browser workflow: given an article of a tax law, it searches the tax authority's public rulings database, reads each ruling in full, extracts the official answer, and gathers the related administrative-court criteria into a spreadsheet. It runs on a locked-down corporate machine with nothing installed and no credentials, and it shipped with the document its IT and security department needed in order to approve it.</p>
+  <p>Everything interesting about it is a restraint rather than a capability: what it refuses to automate, what it refuses to claim, and what it had to prove about itself before anyone would run it.</p>
+</section>
+<section id="at-a-glance">
+<h2>At a glance</h2>
+<dl class="spec">
+  <dt>Result</dt><dd>Replaced a manual browser workflow, and shipped with the document IT and security needed to approve it</dd>
+  <dt>Output</dt><dd>A spreadsheet, plus a folder of the full texts</dd>
+  <dt>Runs on</dt><dd>Windows and the spreadsheet software already installed; no administrator rights, nothing left running</dd>
+  <dt>Network</dt><dd>Read-only traffic to three named public domains; no credentials to store</dd>
+  <dt>Language models</dt><dd>None. Search, fetch, verify and extract are deterministic; summaries are verbatim extracts</dd>
+  <dt>Left manual</dt><dd>Supreme Court case law: the exact query is written into the sheet and never executed</dd>
+  <dt>Known limits</dt><dd>Court criteria are inferred, so they are labelled as candidates that require professional review</dd>
+</dl>
+</section>
+<section id="architecture">
+<h2>Architecture</h2>
+<div class="fig" tabindex="0" role="group" aria-label="Architecture diagram. Scrolls sideways on small screens.">
+    <svg viewBox="0 0 640 366" role="img" aria-label="Flow diagram: article, tax and subsection are used to search the public rulings database; each ruling is fetched in full; the article is confirmed against the governing law; the official answer and the subsection context are extracted, and related court criteria are gathered; output is a spreadsheet plus a folder of full texts. The Supreme Court query is written into the sheet but never executed.">
+      <defs>
+        <marker id="a3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8" stroke-width="1.2"/>
+        </marker>
+      </defs>
+
+      <rect x="8" y="6" width="608" height="36" rx="2"/>
+      <text x="312" y="29" text-anchor="middle">Article, tax and subsection</text>
+      <line x1="312" y1="42" x2="312" y2="52" marker-end="url(#a3)"/>
+
+      <rect x="8" y="54" width="608" height="36" rx="2"/>
+      <text x="312" y="77" text-anchor="middle">Search the tax authority's public rulings database</text>
+      <line x1="312" y1="90" x2="312" y2="100" marker-end="url(#a3)"/>
+
+      <rect x="8" y="102" width="608" height="36" rx="2"/>
+      <text x="312" y="125" text-anchor="middle">Fetch each ruling in full, as the browser would</text>
+      <line x1="312" y1="138" x2="312" y2="148" marker-end="url(#a3)"/>
+
+      <rect x="8" y="150" width="608" height="36" rx="2"/>
+      <text x="312" y="173" text-anchor="middle">Confirm the article belongs to the law you meant</text>
+      <line x1="157" y1="186" x2="157" y2="196" marker-end="url(#a3)"/>
+      <line x1="466" y1="186" x2="466" y2="196" marker-end="url(#a3)"/>
+
+      <rect x="8" y="198" width="299" height="46" rx="2"/>
+      <text x="157" y="218" text-anchor="middle" class="sm">Extract the official answer</text>
+      <text x="157" y="234" text-anchor="middle" class="sm">and the subsection context</text>
+      <rect x="317" y="198" width="299" height="46" rx="2"/>
+      <text x="466" y="218" text-anchor="middle" class="sm">Gather court criteria on the</text>
+      <text x="466" y="234" text-anchor="middle" class="sm">same subject — as candidates</text>
+      <line x1="157" y1="244" x2="157" y2="256" marker-end="url(#a3)"/>
+      <line x1="466" y1="244" x2="466" y2="256" marker-end="url(#a3)"/>
+
+      <rect x="8" y="258" width="608" height="46" rx="2"/>
+      <text x="312" y="278" text-anchor="middle" class="sm">Spreadsheet, plus a folder of the full texts</text>
+      <text x="312" y="294" text-anchor="middle" class="sm">for the professional to read or feed to a notebook of their own</text>
+
+      <rect class="dash" x="8" y="320" width="608" height="38" rx="2"/>
+      <text x="312" y="344" text-anchor="middle" class="sm">Supreme Court: the exact query is written into the sheet, and never executed</text>
+    </svg>
+  </div>
+  <p class="fig-hint">Scroll sideways to see the whole diagram.</p>
+  <p>Everything before the output is deterministic: search, fetch, verify, extract. Nothing is summarised by a model — the summary column is a verbatim extract of the ruling's own answer. The second output exists because the professional will want to interrogate the material with their own tools, and handing over the raw corpus is a better way to help with that than generating an interpretation.</p>
+</section>
+<section id="engineering-decisions">
+<h2>Engineering decisions</h2>
+<h3 id="1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</h3>
+  <dl>
+    <dt>Problem</dt><dd>The most valuable cross-reference is Supreme Court case law. Its search engine is public and would have been no harder to drive than the other two.</dd>
+    <dt>Options</dt><dd>Drive it like the rest and hand over a complete table, or leave it out and give the user a worse tool.</dd>
+    <dt>Chose</dt><dd>Neither, exactly: the tool never connects to it, and instead writes the exact query into the spreadsheet — the search URL and every field, ready to paste — so the professional runs it themselves in the official search. The column exists; the automation does not.</dd>
+    <dt>Cost</dt><dd>A manual step in the middle of the workflow the tool exists to remove, in the one column users most want automatic. That is the trade I would make again: the alternative is a firm's traffic against a court's site in a way its terms do not invite, to save a professional thirty seconds.</dd>
+  </dl>
+
+  <h3 id="2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</h3>
+  <dl>
+    <dt>Problem</dt><dd>There is no official identifier linking a tax ruling to a court decision. Any cross-reference is inferred from subject matter — same article, overlapping language — and inference in a legal document reads as authority.</dd>
+    <dt>Options</dt><dd>Present the matches as results, which is what makes the tool look finished, or present them as candidates, which makes it look unfinished.</dd>
+    <dt>Chose</dt><dd>Candidates, said plainly in the tool and again in its documentation: these are search aids on the same subject, they require professional review, they may include references that do not apply and may miss ones that do. The limitations section also separates the tool's own limits from the source's — a subsection search returns nothing when the ruling never spells the subsection out, which is a fact about the database, not a bug to be hidden.</dd>
+    <dt>Cost</dt><dd>It reads as a weaker product than it is, and a demo of it is less impressive. A research tool that quietly promotes an inferred link to an authority is worse than no tool, because the error it produces is invisible and lands in someone's advice.</dd>
+  </dl>
+
+  <h3 id="3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</h3>
+  <dl>
+    <dt>Problem</dt><dd>Article 74.3 exists in every tax law, and in the repealed versions of each of them. A number alone selects the wrong rulings with confidence.</dd>
+    <dt>Options</dt><dd>Search the number and let the professional discard what does not apply, or confirm each ruling against the law it actually cites.</dd>
+    <dt>Chose</dt><dd>Confirm: the requested tax maps to its statute, and each ruling is checked against the governing law it names, discarding same-numbered articles from other and superseded laws.</dd>
+    <dt>Cost</dt><dd>Recall drops — a ruling that does not state its governing law cleanly falls out of the results. In legal research that is the right direction to lose in: a citation that does not apply costs far more than one that was missed and can be found by widening the search.</dd>
+  </dl>
+
+  <h3 id="4-built-to-be-approved-not-installed">4. Built to be approved, not installed</h3>
+  <dl>
+    <dt>Problem</dt><dd>The deliverable is an executable that arrives by email at a company whose security policy blocks executables, and the person deciding has no reason to trust it.</dd>
+    <dt>Options</dt><dd>Ask for an exception and hope, or make approval cheap enough that saying yes is easy.</dd>
+    <dt>Chose</dt><dd>The second, as a design constraint rather than paperwork at the end. It uses the shell that already ships with Windows and the spreadsheet software already installed, so nothing is installed, no administrator rights are needed and nothing is left running afterwards; traffic is read-only to three named public domains; there are no credentials to store. It shipped with a dossier written for the reviewer: every endpoint contacted and why, the single file it writes, how to verify the traffic independently with a proxy, and a straight explanation of the one flag that looks alarming — the execution-policy bypass — with two alternatives if the policy prefers them. It also carried a costed fallback: the same logic reimplemented as a cloud script so that nothing executes on company machines at all, with what changes and what that version cannot do.</dd>
+    <dt>Cost</dt><dd>The dossier took as long as some of the features, and the fallback was designed for a decision that might never need it. Both are only worth it if you accept that a tool nobody is allowed to run has no value at all, however good it is.</dd>
+  </dl>
+</section>
+<section id="where-the-model-isn-t" class="band">
+<h2>Where the model isn't</h2>
+<p>This is the kind of task people reach for a language model to do: read hundreds of legal texts and tell me what they say. It does not. The only summary it writes is a verbatim extract of the ruling's official answer, because in this domain a paraphrase is a liability — the reader needs the administration's words, not a fluent version of them. Where the material genuinely needs interrogating, the tool prepares the corpus and hands it over: one text file per ruling with its full text and its candidate references, plus a cover page recording the search that produced them, so the professional can put it into a notebook tool and ask their own questions with the sources in front of them. The tool is deterministic and the judgement stays with the person who is accountable for it.</p>
+</section>
+  </main>
+</div>
+<nav class="more" id="more" aria-label="The other systems">
+<ol class="stack stack--end">
+  <li data-book="messaging" style="--words:1946">
+    <a class="spine" href="/messaging/">
+      <span class="plate">NR-01</span>
+      <h2 class="spine-title">AI messaging</h2>
+      <p class="spine-result">Answered a paying client's live WhatsApp, Instagram and phone line in production: qualified leads, booked viewings, and handed over to a human when it should.</p>
+      <p class="spine-meta"><span>Real estate</span><span>On standby</span><span>1,946 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+  <li data-book="purchasing" style="--words:1060">
+    <a class="spine" href="/purchasing/">
+      <span class="plate">NR-02</span>
+      <h2 class="spine-title">Purchasing</h2>
+      <p class="spine-result">Put a ready-to-send order in front of the chef instead of a dashboard, in production for the restaurant it was built for.</p>
+      <p class="spine-meta"><span>Hospitality</span><span>Ran in production</span><span>1,060 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+  <li data-book="training" style="--words:928">
+    <a class="spine" href="/training/">
+      <span class="plate">NR-04</span>
+      <h2 class="spine-title">Cognitive training</h2>
+      <p class="spine-result">Works fully offline with no account, signing up later adopts the history you already have, and it tells the user what the training does and does not improve.</p>
+      <p class="spine-meta"><span>Learning</span><span>928 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+</ol>
+</nav>
+<footer class="colophon">
+  <h2 class="colophon-title">Contact</h2>
+  <p class="colophon-mail"><a href="mailto:nicoroigmeseguer@gmail.com">nicoroigmeseguer@gmail.com</a></p>
+  <p class="colophon-links"><a href="https://github.com/nicoroig-ai">github.com/nicoroig-ai</a></p>
+  <p class="colophon-note">The write-ups are descriptions of architecture and reasoning only — no code, client data or configuration. Client and employer names are omitted deliberately.</p>
+</footer>
+</body>
+</html>
