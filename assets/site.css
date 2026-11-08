@@ -24,19 +24,20 @@
   --ink-2: #4a4f57;
   --rule: #c9ccd1;
 
-  --cobalt: #1b35c9;
-  --yellow: #f6c700;
-  --green: #006b52;
-  --orange: #ff5a1f;
+  --navy: #1f2b4d;
+  --coral: #ec6f5a;
+  --cream: #f0e5d0;
+  --slate: #5d7590;
   --on-dark: #ffffff;
   --on-light: #0e1013;
 
-  --cobalt-text: #1b35c9;
-  --yellow-text: #735c00;
-  --green-text: #006b52;
-  --orange-text: #b13606;
+  --navy-text: #1f2b4d;
+  --coral-text: #b5341e;
+  --cream-text: #7f6128;
+  --slate-text: #4f6680;
 
-  --tint: 9%;
+  --tint: 10%;
+  --cream-tint: 55%;
   --gutter: clamp(1rem, 3.2vw, 3rem);
   --ease: cubic-bezier(.16, 1, .3, 1);
   --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
@@ -48,18 +49,19 @@
     --ink: #eceef0;
     --ink-2: #a5abb4;
     --rule: #30343b;
-    --cobalt-text: #9dabff;
-    --yellow-text: #f6c700;
-    --green-text: #4fd1ab;
-    --orange-text: #ff8a5f;
-    --tint: 15%;
+    --navy-text: #8da2e0;
+    --coral-text: #f08070;
+    --cream-text: #f0e5d0;
+    --slate-text: #8ea4bd;
+    --tint: 16%;
+    --cream-tint: 14%;
   }
 }
 
-[data-book="messaging"]  { --book: var(--cobalt); --on-book: var(--on-dark);  --book-text: var(--cobalt-text); }
-[data-book="purchasing"] { --book: var(--yellow); --on-book: var(--on-light); --book-text: var(--yellow-text); }
-[data-book="tax"]        { --book: var(--green);  --on-book: var(--on-dark);  --book-text: var(--green-text); }
-[data-book="training"]   { --book: var(--orange); --on-book: var(--on-light); --book-text: var(--orange-text); }
+[data-book="messaging"]  { --book: var(--navy);  --on-book: var(--on-dark);  --book-text: var(--navy-text); }
+[data-book="purchasing"] { --book: var(--coral); --on-book: var(--on-light); --book-text: var(--coral-text); }
+[data-book="tax"]        { --book: var(--cream); --on-book: var(--on-light); --book-text: var(--cream-text); --tint: var(--cream-tint); }
+[data-book="training"]   { --book: var(--slate); --on-book: var(--on-dark);  --book-text: var(--slate-text); }
 
 *, *::before, *::after { box-sizing: border-box; }
 html {
@@ -245,6 +247,7 @@ main { display: block; }
   padding: 1.25rem var(--gutter) clamp(1.75rem, 4vh, 3rem);
   background: var(--book);
   color: var(--on-book);
+  border-bottom: 4px solid var(--ink);
 }
 .cover-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .back {

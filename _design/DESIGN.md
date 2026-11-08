@@ -15,10 +15,12 @@ Tokens live at the top of `assets/site.css`.
 
 | Volume | Field | Text on field | Label on paper (light / dark) |
 |---|---|---|---|
-| NR-01 Messaging | `#1b35c9` | white | `#1b35c9` / `#9dabff` |
-| NR-02 Purchasing | `#f6c700` | ink | `#735c00` / `#f6c700` |
-| NR-03 Tax | `#006b52` | white | `#006b52` / `#4fd1ab` |
-| NR-04 Training | `#ff5a1f` | ink | `#b13606` / `#ff8a5f` |
+| NR-01 Messaging | Navy `#1f2b4d` | white | `#1f2b4d` / `#8da2e0` |
+| NR-02 Purchasing | Coral `#ec6f5a` | ink | `#b5341e` / `#f08070` |
+| NR-03 Tax | Cream `#f0e5d0` | ink | `#7f6128` / `#f0e5d0` |
+| NR-04 Training | Slate `#5d7590` | white | `#4f6680` / `#8ea4bd` |
+
+Navy and coral are near-complements; cream is the rest between them; slate repeats the cool side quietly. Cream is almost the paper colour (1.14:1), so it never sits at the top or bottom of a stack, covers end on a 4px ink rule, and its decision tint is stronger (55% instead of 10%).
 
 Colour owns whole regions: spines, covers and one colour field per write-up. Light or dark follows the visitor's system; volume colours stay the same in both. Every text pair is at least 4.5:1.
 
