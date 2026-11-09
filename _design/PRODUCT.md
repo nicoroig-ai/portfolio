@@ -39,7 +39,7 @@ Name: Nico Roig. Descriptor: AI engineer (assumption, set by the build; used to 
 
 ## Evidence on Hand
 
-Four written case studies; the public repositories meta-webhooks, phone-identity, supabase-multitenant-rls and architecture-notes. No testimonials, client names, metrics or screenshots of the systems exist on the site, and none may be invented.
+Three written case studies (a fourth, cognitive training, was removed at Nico's request on 2026-11-09); the public repositories meta-webhooks, phone-identity, supabase-multitenant-rls and architecture-notes. No testimonials, client names, metrics or screenshots of the systems exist on the site, and none may be invented.
 
 ## Product Principles
 

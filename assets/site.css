@@ -57,9 +57,8 @@
 }
 
 [data-book="messaging"]  { --book: var(--blue-1); --on-book: var(--on-dark);  --book-text: var(--blue-1-text); }
-[data-book="purchasing"] { --book: var(--blue-2); --on-book: var(--on-dark);  --book-text: var(--blue-2-text); }
-[data-book="tax"]        { --book: var(--blue-3); --on-book: var(--on-dark);  --book-text: var(--blue-3-text); }
-[data-book="training"]   { --book: var(--blue-4); --on-book: var(--on-light); --book-text: var(--blue-4-text); }
+[data-book="purchasing"] { --book: var(--blue-3); --on-book: var(--on-dark);  --book-text: var(--blue-3-text); }
+[data-book="tax"]        { --book: var(--blue-4); --on-book: var(--on-light); --book-text: var(--blue-4-text); }
 
 *, *::before, *::after { box-sizing: border-box; }
 html {
@@ -478,7 +477,6 @@ main { display: block; }
 [data-book="messaging"]  > .spine, body[data-book="messaging"]  > .cover { view-transition-name: book-messaging; }
 [data-book="purchasing"] > .spine, body[data-book="purchasing"] > .cover { view-transition-name: book-purchasing; }
 [data-book="tax"]        > .spine, body[data-book="tax"]        > .cover { view-transition-name: book-tax; }
-[data-book="training"]   > .spine, body[data-book="training"]   > .cover { view-transition-name: book-training; }
 ::view-transition-group(*) { animation-duration: .55s; animation-timing-function: var(--ease); }
 ::view-transition-old(*), ::view-transition-new(*) { height: 100%; object-fit: cover; overflow: clip; }
 
