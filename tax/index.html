@@ -38,7 +38,7 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</a></li><li class="toc-sub"><a href="#2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</a></li><li class="toc-sub"><a href="#3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</a></li><li class="toc-sub"><a href="#4-built-to-be-approved-not-installed">4. Built to be approved, not installed</a></li><li><a href="#where-the-model-isn-t">Where the model isn't</a></li>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</a></li><li class="toc-sub"><a href="#2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</a></li><li class="toc-sub"><a href="#3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</a></li><li class="toc-sub"><a href="#4-built-to-be-approved-not-installed">4. Built to be approved, not installed</a></li><li><a href="#technical-notes">Technical notes</a></li><li><a href="#where-the-model-isn-t">Where the model isn't</a></li>
     </ol>
   </nav>
   <main id="content">
@@ -139,6 +139,14 @@
     <dt>Chose</dt><dd>The second, as a design constraint rather than paperwork at the end. It uses the shell that already ships with Windows and the spreadsheet software already installed, so nothing is installed, no administrator rights are needed and nothing is left running afterwards; traffic is read-only to three named public domains; there are no credentials to store. It shipped with a dossier written for the reviewer: every endpoint contacted and why, the single file it writes, how to verify the traffic independently with a proxy, and a straight explanation of the one flag that looks alarming — the execution-policy bypass — with two alternatives if the policy prefers them. It also carried a costed fallback: the same logic reimplemented as a cloud script so that nothing executes on company machines at all, with what changes and what that version cannot do.</dd>
     <dt>Cost</dt><dd>The dossier took as long as some of the features, and the fallback was designed for a decision that might never need it. Both are only worth it if you accept that a tool nobody is allowed to run has no value at all, however good it is.</dd>
   </dl>
+</section>
+<section id="technical-notes">
+<h2>Technical notes</h2>
+<ul class="lessons">
+  <li><strong>Precision over recall, on purpose.</strong> Checking each ruling against the law it cites removes same-numbered articles from other and repealed laws. That lowers recall to raise precision, the right direction in legal research: a citation that does not apply costs more than one that was missed and can be found by widening the search.</li>
+  <li><strong>Determinism is the feature.</strong> With no model in the pipeline, the same search always produces the same spreadsheet, and every summary is the ruling's own words. The output is reproducible and auditable, and the cover page records the exact search that produced it.</li>
+  <li><strong>Least privilege as a way to get approved.</strong> The tool uses the shell that ships with Windows and the spreadsheet software already installed: no installer, no administrator rights, no stored credentials, read-only traffic to three named domains. That makes the threat model small enough to state in full, and the reviewer can verify it independently with a proxy.</li>
+</ul>
 </section>
 <section id="where-the-model-isn-t" class="band">
 <h2>Where the model isn't</h2>

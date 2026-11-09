@@ -378,6 +378,19 @@ main { display: block; }
 .fig rect.dash { fill: none; }
 .fig marker path { stroke: var(--ink); }
 
+/* Technical notes and reflections */
+.o, code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: .875em;
+}
+.o { font-weight: 600; color: var(--book-text); white-space: nowrap; }
+.o sub { font-size: .75em; }
+code { overflow-wrap: anywhere; }
+#content ul.lessons { list-style: none; padding: 0; margin: 1.25rem 0 0; }
+#content ul.lessons li { margin: 0; padding: 1.125rem 0; border-bottom: 1px solid var(--rule); max-width: 68ch; }
+#content ul.lessons li:first-child { padding-top: .25rem; }
+#content ul.lessons strong { display: block; margin-bottom: .375rem; font-size: 1.125rem; line-height: 1.3; text-wrap: balance; }
+
 .fig-hint { display: none; }
 @media (max-width: 44rem) {
   .fig { margin-bottom: .5rem; }

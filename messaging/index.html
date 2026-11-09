@@ -38,7 +38,7 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-isolating-one-client-s-data-from-another-s">1. Isolating one client's data from another's</a></li><li class="toc-sub"><a href="#2-durable-work-lives-in-the-database">2. Durable work lives in the database</a></li><li class="toc-sub"><a href="#3-one-person-several-channels">3. One person, several channels</a></li><li class="toc-sub"><a href="#4-the-context-window-is-where-both-the-cost-and-the-invention-live">4. The context window is where both the cost and the invention live</a></li><li class="toc-sub"><a href="#5-grading-the-assistant-and-letting-it-correct-itself-within-limits">5. Grading the assistant, and letting it correct itself within limits</a></li><li><a href="#a-production-incident-start-to-finish">A production incident, start to finish</a></li><li><a href="#a-process-failure-and-what-i-know-is-missing">A process failure, and what I know is missing</a></li>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-isolating-one-client-s-data-from-another-s">1. Isolating one client's data from another's</a></li><li class="toc-sub"><a href="#2-durable-work-lives-in-the-database">2. Durable work lives in the database</a></li><li class="toc-sub"><a href="#3-one-person-several-channels">3. One person, several channels</a></li><li class="toc-sub"><a href="#4-the-context-window-is-where-both-the-cost-and-the-invention-live">4. The context window is where both the cost and the invention live</a></li><li class="toc-sub"><a href="#5-grading-the-assistant-and-letting-it-correct-itself-within-limits">5. Grading the assistant, and letting it correct itself within limits</a></li><li><a href="#technical-notes">Technical notes</a></li><li><a href="#a-production-incident-start-to-finish">A production incident, start to finish</a></li><li><a href="#a-process-failure-and-what-i-know-is-missing">A process failure, and what I know is missing</a></li><li><a href="#what-i-would-do-differently">What I would do differently</a></li>
     </ol>
   </nav>
   <main id="content">
@@ -160,6 +160,17 @@
     <dt>Cost</dt><dd>It is deliberately slow to change anything, and off unless a client is opted in, so it only helps where someone turned it on. One practical trap: the provider endpoint this runs on rejects numeric bounds in structured-output schemas, which failed the whole evaluation silently — the range is asked for in the prompt and clamped in code instead.</dd>
   </dl>
 </section>
+<section id="technical-notes">
+<h2>Technical notes</h2>
+<ul class="lessons">
+  <li><strong>Replaying a conversation costs quadratically; bounding it makes the cost linear.</strong> If every reply re-sent the whole history, reply <em>k</em> would carry <em>k</em> messages, so a conversation of <em>n</em> messages would send <span class="o">O(n²)</span> tokens in total. Folding older history into a rolling per-person summary behind a watermark, plus a fixed window of recent messages, keeps each reply at <span class="o">O(1)</span> in conversation length and the conversation at <span class="o">O(n)</span>. The production incident below is the price of that bound: whatever fills the window decides what the model can still see.</li>
+  <li><strong>Delivery is at least once, so every side effect is idempotent.</strong> Meta retries webhooks and a crashed worker leaves jobs half done, so nothing here can assume exactly-once delivery. Instead every side effect carries a key behind a unique index: events by message id, jobs by an idempotency key that is unique only across active states. A redelivery becomes one index lookup, <span class="o">O(log n)</span>, and changes nothing. Jobs are claimed with <code>FOR UPDATE SKIP LOCKED</code> so workers never queue behind each other, the attempt counter moves at claim time so a crash still spends its retry budget, and a lease hands abandoned work back.</li>
+  <li><strong>Isolation is enforced below the code that could forget it.</strong> Row-level security filters reads with <code>USING</code>, and writes need <code>WITH CHECK</code> as well, or a member of one tenant can insert or move a row into another. The membership helper runs as <code>security definer</code>, which breaks the policy recursion Postgres would otherwise abort on, and as <code>stable</code>, so the planner can evaluate it once per query instead of once per row. Credentials tables have RLS on and no policy at all: zero rows, by construction. The pattern, rewritten with 18 tests against a real Postgres, is <a href="https://github.com/nicoroig-ai/supabase-multitenant-rls">supabase-multitenant-rls</a>.</li>
+  <li><strong>The webhook endpoint fails closed and answers fast.</strong> The HMAC is checked over the raw bytes, because parsing and re-serialising JSON changes them and the signature never matches. The comparison runs in constant time, since plain equality stops at the first wrong character and its timing tells an attacker how much of a guess was right. With no secret configured the endpoint refuses everything. It still answers <code>200</code> to a malformed body, because Meta disables endpoints that keep failing, and the slow work happens after the response. Written up in <a href="https://github.com/nicoroig-ai/meta-webhooks">meta-webhooks</a>.</li>
+  <li><strong>A burst of messages is debounced into one turn.</strong> An inbound message schedules a reply job a minute out, and each further message pushes that deadline back. Model calls then scale with bursts instead of lines: four messages from a lead get one answer.</li>
+  <li><strong>Identity is a parsing problem with country rules.</strong> The same phone number arrives with a country code from WhatsApp and in national format from the voice carrier. Normalising to E.164 has to follow per-country rules: Italian landlines keep their leading zero, so stripping it blindly corrupts them. The parser decides in a fixed order and returns a typed failure such as <code>ambiguous</code> rather than guessing. Extracted as <a href="https://github.com/nicoroig-ai/phone-identity">phone-identity</a>.</li>
+</ul>
+</section>
 <section id="a-production-incident-start-to-finish" class="band">
 <h2>A production incident, start to finish</h2>
 <p class="pull">Shipping listing photos made the assistant forget prices — over the phone.</p>
@@ -177,6 +188,14 @@
     <li>Signature verification for the voice provider is written but switched off until it can be validated against a real request. The security notes state exactly what that leaves exposed and that it has to be on before the line is public, rather than leaving it as a comfortable unknown.</li>
     <li>The platform is currently in standby: deliberately inert, nothing deleted, with a document recording what was switched off, in what order, and the exact reverse of each step.</li>
   </ul>
+</section>
+<section id="what-i-would-do-differently">
+<h2>What I would do differently</h2>
+<ul class="lessons">
+  <li><strong>Write the diagnostic script first.</strong> It became the most useful thing in the repository, the one answer to “what state is this client actually in?”, and it only existed after enough features had gone dark to force it.</li>
+  <li><strong>Treat identity as load-bearing from day one.</strong> Matching the same person across WhatsApp, calls and forms looked like a detail. It is the difference between a system that knows who it is talking to and an expensive one that does not.</li>
+  <li><strong>Be slower to build ahead of activation.</strong> The rule about dark features fixed the symptom. The cause was building things that could not be switched on yet, because building is more fun than waiting for a client to be ready.</li>
+</ul>
 </section>
   </main>
 </div>

@@ -38,7 +38,7 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-two-routes-to-the-same-number-chosen-per-ingredient">1. Two routes to the same number, chosen per ingredient</a></li><li class="toc-sub"><a href="#2-the-objective-is-the-cost-of-being-wrong-not-accuracy">2. The objective is the cost of being wrong, not accuracy</a></li><li class="toc-sub"><a href="#3-theoretical-stock-drifts-a-count-is-a-measurement">3. Theoretical stock drifts; a count is a measurement</a></li><li class="toc-sub"><a href="#4-units-and-a-guard-that-sits-outside-the-forecast">4. Units, and a guard that sits outside the forecast</a></li>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-two-routes-to-the-same-number-chosen-per-ingredient">1. Two routes to the same number, chosen per ingredient</a></li><li class="toc-sub"><a href="#2-the-objective-is-the-cost-of-being-wrong-not-accuracy">2. The objective is the cost of being wrong, not accuracy</a></li><li class="toc-sub"><a href="#3-theoretical-stock-drifts-a-count-is-a-measurement">3. Theoretical stock drifts; a count is a measurement</a></li><li class="toc-sub"><a href="#4-units-and-a-guard-that-sits-outside-the-forecast">4. Units, and a guard that sits outside the forecast</a></li><li><a href="#technical-notes">Technical notes</a></li><li><a href="#what-i-took-from-it">What I took from it</a></li>
     </ol>
   </nav>
   <main id="content">
@@ -146,6 +146,23 @@
     <dt>Chose</dt><dd>A conversion belongs to a specific ingredient, from a specific supplier, in a specific pack, and is established when that supplier is set up rather than inferred at order time. On top of that, an order line far above what that ingredient normally moves is stopped for a person to look at, whatever the forecast produced. That check is arithmetic and lives outside the model on purpose, so that improving the forecast can never quietly remove it.</dd>
     <dt>Cost</dt><dd>More friction setting up a supplier, and a rule that will occasionally stop a genuinely large order before a big service. Blocking a legitimate order now and then is a far smaller problem than sending one absurd one, and that asymmetry is the entire reason the guard exists.</dd>
   </dl>
+</section>
+<section id="technical-notes">
+<h2>Technical notes</h2>
+<ul class="lessons">
+  <li><strong>The order quantity is a newsvendor problem.</strong> With demand carried as a distribution, the best quantity is the point where running short and throwing away cost the same in expectation: <span class="o">q* = F⁻¹(c<sub>u</sub> / (c<sub>u</sub> + c<sub>o</sub>))</span>, where <em>c<sub>u</sub></em> is the cost of being short and <em>c<sub>o</sub></em> the cost of being over. A kitchen cannot price those in euros, so each ingredient's failure class fixes the ratio, and shelf life caps how much of an over-order could ever be used.</li>
+  <li><strong>Forecasting top-down pools data the dishes do not have.</strong> A dish selling a few units a week is mostly noise. Forecasting covers, a dense series, and multiplying by slowly moving menu shares is a top-down hierarchical forecast: it borrows strength from the aggregate and survives a menu change. The trade is that a covers error is shared by every ingredient that depends on it.</li>
+  <li><strong>Errors that move together cannot be averaged away.</strong> Because one covers forecast drives every dish-based ingredient, their errors are correlated: a bad night is bad for all of them at once. A safety margin that assumes independent errors would understate the risk, which is one reason the guard against absurd orders is plain arithmetic outside the forecast.</li>
+  <li><strong>A physical count is a measurement of drift.</strong> The running stock figure is an estimate, and each count is an observation of it. The gap between the two updates that ingredient's drift rate, which corrects expected consumption from then on. A count implying impossible consumption is rejected rather than absorbed, so one mistyped number cannot become a permanent rate.</li>
+</ul>
+</section>
+<section id="what-i-took-from-it">
+<h2>What I took from it</h2>
+<ul class="lessons">
+  <li><strong>Pick the error that matters before the model.</strong> An accuracy score averaged away the one thing the kitchen cared about, which mistake costs more. Choosing the objective came before choosing any method.</li>
+  <li><strong>Design for the data people actually produce.</strong> Counts typed by tired people at closing time are the input, so the system has to treat them as evidence with error, never as truth.</li>
+  <li><strong>Keep the safety checks outside the clever part.</strong> The guard that stops an absurd order is plain arithmetic on purpose, so no improvement to the forecast can quietly remove it.</li>
+</ul>
 </section>
   </main>
 </div>
