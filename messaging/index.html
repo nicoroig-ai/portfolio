@@ -38,8 +38,8 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-isolating-one-client-s-data-from-another-s">1. Isolating one client's data from another's</a></li><li class="toc-sub"><a href="#2-durable-work-lives-in-the-database">2. Durable work lives in the database</a></li><li class="toc-sub"><a href="#3-one-person-several-channels">3. One person, several channels</a></li><li class="toc-sub"><a href="#4-the-context-window-is-where-both-the-cost-and-the-invention-live">4. The context window is where both the cost and the invention live</a></li><li class="toc-sub"><a href="#5-grading-the-assistant-and-letting-it-correct-itself-within-limits">5. Grading the assistant, and letting it correct itself within limits</a></li><li><a href="#a-production-incident-start-to-finish">A production incident, start to finish</a></li><li><a href="#a-process-failure-and-what-i-know-is-missing">A process failure, and what I know is missing</a></li>
-    </ol>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-isolating-one-client-s-data-from-another-s">1. Isolating one client's data from another's</a></li><li class="toc-sub"><a href="#2-durable-work-lives-in-the-database">2. Durable work lives in the database</a></li><li class="toc-sub"><a href="#3-one-person-several-channels">3. One person, several channels</a></li><li class="toc-sub"><a href="#4-the-context-window-is-where-both-the-cost-and-the-invention-live">4. The context window is where both the cost and the invention live</a></li><li class="toc-sub"><a href="#5-grading-the-assistant-and-letting-it-correct-itself-within-limits">5. Grading the assistant, and letting it correct itself within limits</a></li><li><a href="#cost-and-complexity">Cost and complexity</a></li><li><a href="#a-production-incident-start-to-finish">A production incident, start to finish</a></li><li><a href="#a-process-failure-and-what-i-know-is-missing">A process failure, and what I know is missing</a></li>
+    <li><a href="#what-i-would-do-differently">What I would do differently</a></li></ol>
   </nav>
   <main id="content">
 <section id="what-i-built">
@@ -160,6 +160,23 @@
     <dt>Cost</dt><dd>It is deliberately slow to change anything, and off unless a client is opted in, so it only helps where someone turned it on. One practical trap: the provider endpoint this runs on rejects numeric bounds in structured-output schemas, which failed the whole evaluation silently — the range is asked for in the prompt and clamped in code instead.</dd>
   </dl>
 </section>
+<section id="cost-and-complexity">
+<h2>Cost and complexity</h2>
+<p>Most of the cost in this system grows with something: the length of a conversation, the number of messages in a burst, the number of rows a query touches. These are the places where that growth was cut, and how.</p>
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th scope="col">What grows</th><th scope="col">The obvious way</th><th scope="col">What it does instead</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Model context per reply</th><td>Replay the whole history every turn: each reply costs more than the last, <span class="o">O(n)</span> tokens per reply and <span class="o">O(n²)</span> over a conversation.</td><td>Older history is folded into a rolling per-person summary behind a watermark, plus a fixed-size window of recent messages. Context per reply stays bounded: <span class="o">O(1)</span> in conversation length.</td></tr>
+    <tr><th scope="row">Replies to a burst of messages</th><td>One model call per message, so four lines from a lead get four answers.</td><td>Each message pushes a scheduled reply job back by a minute. One model call per burst, however many lines it has.</td></tr>
+    <tr><th scope="row">Listing photos</th><td>Put images or their URLs in the context, so cost grows with every photo sent.</td><td>The model cites a listing reference and the delivery layer attaches the images. Context cost does not depend on how many photos go out.</td></tr>
+    <tr><th scope="row">Tenant check under row-level security</th><td>A membership lookup evaluated for every row a query reads.</td><td>A <code>stable</code>, <code>security definer</code> helper that the planner can evaluate once per query instead of once per row. Details in <a href="https://github.com/nicoroig-ai/supabase-multitenant-rls">supabase-multitenant-rls</a>.</td></tr>
+    <tr><th scope="row">Webhook signature check</th><td>Compare the signature with plain equality, which returns at the first different character and leaks through its timing how much of a guess was right.</td><td>Verify the HMAC over the raw bytes and compare in constant time. Details in <a href="https://github.com/nicoroig-ai/meta-webhooks">meta-webhooks</a>.</td></tr>
+    <tr><th scope="row">Duplicate deliveries</th><td>Process every delivery, so a retried webhook produces a second reply.</td><td>Events and jobs carry a key behind a unique index. A redelivery is one index lookup, <span class="o">O(log n)</span>, and changes nothing.</td></tr>
+    <tr><th scope="row">Background work</th><td>A frequent cron, which would poll a mostly empty table 1,440 times a day.</td><td>A few jobs are drained after each webhook has already been answered, with a daily schedule as the floor. Work follows traffic instead of the clock.</td></tr>
+    <tr><th scope="row">Claiming a job</th><td>Lock the next row and make every other worker wait for it.</td><td><code>FOR UPDATE SKIP LOCKED</code>: workers skip rows another worker holds, so they never queue behind each other.</td></tr>
+  </tbody>
+</table></div>
+</section>
 <section id="a-production-incident-start-to-finish" class="band">
 <h2>A production incident, start to finish</h2>
 <p class="pull">Shipping listing photos made the assistant forget prices — over the phone.</p>
@@ -177,6 +194,14 @@
     <li>Signature verification for the voice provider is written but switched off until it can be validated against a real request. The security notes state exactly what that leaves exposed and that it has to be on before the line is public, rather than leaving it as a comfortable unknown.</li>
     <li>The platform is currently in standby: deliberately inert, nothing deleted, with a document recording what was switched off, in what order, and the exact reverse of each step.</li>
   </ul>
+</section>
+<section id="what-i-would-do-differently">
+<h2>What I would do differently</h2>
+<ul class="lessons">
+  <li><strong>Write the diagnostic script first.</strong> It became the most useful thing in the repository, the one answer to “what state is this client actually in?”, and it only existed after enough features had gone dark to force it.</li>
+  <li><strong>Treat identity as load-bearing from day one.</strong> Matching the same person across WhatsApp, calls and forms looked like a detail. It is the difference between a system that knows who it is talking to and an expensive one that does not.</li>
+  <li><strong>Be slower to build ahead of activation.</strong> The rule about dark features fixed the symptom. The cause was building things that could not be switched on yet, because building is more fun than waiting for a client to be ready.</li>
+</ul>
 </section>
   </main>
 </div>

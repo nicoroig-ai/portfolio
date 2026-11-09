@@ -38,7 +38,7 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</a></li><li class="toc-sub"><a href="#2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</a></li><li class="toc-sub"><a href="#3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</a></li><li class="toc-sub"><a href="#4-built-to-be-approved-not-installed">4. Built to be approved, not installed</a></li><li><a href="#where-the-model-isn-t">Where the model isn't</a></li>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-not-automating-the-source-that-asks-you-not-to">1. Not automating the source that asks you not to</a></li><li class="toc-sub"><a href="#2-labelling-the-uncertain-output-as-uncertain">2. Labelling the uncertain output as uncertain</a></li><li class="toc-sub"><a href="#3-matching-the-law-not-just-the-number">3. Matching the law, not just the number</a></li><li class="toc-sub"><a href="#4-built-to-be-approved-not-installed">4. Built to be approved, not installed</a></li><li><a href="#cost-and-complexity">Cost and complexity</a></li><li><a href="#where-the-model-isn-t">Where the model isn't</a></li>
     </ol>
   </nav>
   <main id="content">
@@ -139,6 +139,20 @@
     <dt>Chose</dt><dd>The second, as a design constraint rather than paperwork at the end. It uses the shell that already ships with Windows and the spreadsheet software already installed, so nothing is installed, no administrator rights are needed and nothing is left running afterwards; traffic is read-only to three named public domains; there are no credentials to store. It shipped with a dossier written for the reviewer: every endpoint contacted and why, the single file it writes, how to verify the traffic independently with a proxy, and a straight explanation of the one flag that looks alarming — the execution-policy bypass — with two alternatives if the policy prefers them. It also carried a costed fallback: the same logic reimplemented as a cloud script so that nothing executes on company machines at all, with what changes and what that version cannot do.</dd>
     <dt>Cost</dt><dd>The dossier took as long as some of the features, and the fallback was designed for a decision that might never need it. Both are only worth it if you accept that a tool nobody is allowed to run has no value at all, however good it is.</dd>
   </dl>
+</section>
+<section id="cost-and-complexity">
+<h2>Cost and complexity</h2>
+<p>The tool does almost no computation. What it controls is how much work it asks of the network and of the professional, and how much of its output can be checked.</p>
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th scope="col">What grows</th><th scope="col">The obvious way</th><th scope="col">What it does instead</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Work per search</th><td>Open every ruling by hand in a browser.</td><td>One fetch per ruling the search returns: <span class="o">O(n)</span> in the number of results, bound by network round trips rather than by computation.</td></tr>
+    <tr><th scope="row">Matching the law</th><td>Match the article number alone, which selects same-numbered articles from other and repealed laws.</td><td>A check per ruling against the law it cites. It deliberately trades recall for precision, because a citation that does not apply costs more than one that was missed.</td></tr>
+    <tr><th scope="row">Language model calls</th><td>Summarise each ruling with a model.</td><td>None. Every step is deterministic, so the same search gives the same spreadsheet and every summary is the ruling's own words.</td></tr>
+    <tr><th scope="row">Requests to the Supreme Court site</th><td>Automate it like the other sources.</td><td>Zero. The exact query is written into the sheet for the professional to run.</td></tr>
+    <tr><th scope="row">Footprint on the machine</th><td>An installer, an exception from IT, and credentials to store.</td><td>Nothing installed, no administrator rights, nothing left running, read-only traffic to three named domains.</td></tr>
+  </tbody>
+</table></div>
 </section>
 <section id="where-the-model-isn-t" class="band">
 <h2>Where the model isn't</h2>

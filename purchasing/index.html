@@ -38,8 +38,8 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-two-routes-to-the-same-number-chosen-per-ingredient">1. Two routes to the same number, chosen per ingredient</a></li><li class="toc-sub"><a href="#2-the-objective-is-the-cost-of-being-wrong-not-accuracy">2. The objective is the cost of being wrong, not accuracy</a></li><li class="toc-sub"><a href="#3-theoretical-stock-drifts-a-count-is-a-measurement">3. Theoretical stock drifts; a count is a measurement</a></li><li class="toc-sub"><a href="#4-units-and-a-guard-that-sits-outside-the-forecast">4. Units, and a guard that sits outside the forecast</a></li>
-    </ol>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-two-routes-to-the-same-number-chosen-per-ingredient">1. Two routes to the same number, chosen per ingredient</a></li><li class="toc-sub"><a href="#2-the-objective-is-the-cost-of-being-wrong-not-accuracy">2. The objective is the cost of being wrong, not accuracy</a></li><li class="toc-sub"><a href="#3-theoretical-stock-drifts-a-count-is-a-measurement">3. Theoretical stock drifts; a count is a measurement</a></li><li class="toc-sub"><a href="#4-units-and-a-guard-that-sits-outside-the-forecast">4. Units, and a guard that sits outside the forecast</a></li><li><a href="#cost-and-complexity">Cost and complexity</a></li>
+    <li><a href="#what-i-took-from-it">What I took from it</a></li></ol>
   </nav>
   <main id="content">
 <section id="what-i-built">
@@ -146,6 +146,28 @@
     <dt>Chose</dt><dd>A conversion belongs to a specific ingredient, from a specific supplier, in a specific pack, and is established when that supplier is set up rather than inferred at order time. On top of that, an order line far above what that ingredient normally moves is stopped for a person to look at, whatever the forecast produced. That check is arithmetic and lives outside the model on purpose, so that improving the forecast can never quietly remove it.</dd>
     <dt>Cost</dt><dd>More friction setting up a supplier, and a rule that will occasionally stop a genuinely large order before a big service. Blocking a legitimate order now and then is a far smaller problem than sending one absurd one, and that asymmetry is the entire reason the guard exists.</dd>
   </dl>
+</section>
+<section id="cost-and-complexity">
+<h2>Cost and complexity</h2>
+<p>Here the expensive mistakes are statistical and arithmetic rather than computational. Each row is a place where the obvious method fails, and the cost of the method that replaced it.</p>
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th scope="col">What grows</th><th scope="col">The obvious way</th><th scope="col">What it does instead</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Forecasting a dish</th><td>One time series per dish: a handful of sales a week, and a menu change resets it.</td><td>One dense series of covers, times slowly moving menu shares, exploded through the recipes. The explosion costs <span class="o">O(dishes × ingredients per recipe)</span>, which is small; the gain is statistical, because the dense series carries the signal the sparse ones lack.</td></tr>
+    <tr><th scope="row">Choosing a quantity</th><td>A point forecast plus a flat safety margin.</td><td>Demand is carried as a range, and the quantity sits where the expected cost of running out equals the expected cost of throwing away: the newsvendor trade-off, set per ingredient by how it fails rather than by euro figures nobody can give.</td></tr>
+    <tr><th scope="row">Converting units</th><td>One global unit table, with missing conversions inferred at order time.</td><td>A conversion bound to one ingredient, one supplier and one pack, set when the supplier is added. At order time it is a lookup, <span class="o">O(1)</span>, and cannot be guessed.</td></tr>
+    <tr><th scope="row">Catching an absurd order</th><td>Trust the forecast.</td><td>An arithmetic check of each order line against what that ingredient normally moves, <span class="o">O(1)</span> per line and outside the model, so improving the forecast can never remove it.</td></tr>
+    <tr><th scope="row">Knowing what is on the shelf</th><td>A running total from sales, reset by an occasional count.</td><td>Each count resets the level and also measures drift, which corrects expected consumption from then on. The count is treated as an observation, and its gap from the estimate as the signal.</td></tr>
+  </tbody>
+</table></div>
+</section>
+<section id="what-i-took-from-it">
+<h2>What I took from it</h2>
+<ul class="lessons">
+  <li><strong>Pick the error that matters before the model.</strong> An accuracy score averaged away the one thing the kitchen cared about, which mistake costs more. Choosing the objective came before choosing any method.</li>
+  <li><strong>Design for the data people actually produce.</strong> Counts typed by tired people at closing time are the input, so the system has to treat them as evidence with error, never as truth.</li>
+  <li><strong>Keep the safety checks outside the clever part.</strong> The guard that stops an absurd order is plain arithmetic on purpose, so no improvement to the forecast can quietly remove it.</li>
+</ul>
 </section>
   </main>
 </div>

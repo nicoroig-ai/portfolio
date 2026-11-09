@@ -379,6 +379,40 @@ main { display: block; }
 .fig rect.dash { fill: none; }
 .fig marker path { stroke: var(--ink); }
 
+/* Cost and complexity */
+.costs-wrap { margin: 1.5rem 0 0; }
+.costs { width: 100%; border-collapse: collapse; border-top: 4px solid var(--ink); font-size: .9688rem; line-height: 1.5; }
+.costs th, .costs td { padding: .875rem 1rem .875rem 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+.costs thead th { padding-block: .5rem; font-size: .875rem; font-weight: 650; color: var(--ink-2); }
+.costs tbody th { width: 22%; font-weight: 700; }
+.costs tbody td:nth-child(2) { width: 33%; color: var(--ink-2); }
+.costs tbody td:last-child { padding-right: 0; }
+.o, code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: .875em;
+  white-space: nowrap;
+}
+.o { font-weight: 600; color: var(--book-text); }
+code { white-space: normal; overflow-wrap: anywhere; }
+
+/* Reflection */
+#content ul.lessons { list-style: none; padding: 0; }
+#content ul.lessons li { margin: 0; padding: 1rem 0; border-bottom: 1px solid var(--rule); max-width: 68ch; }
+#content ul.lessons li:first-child { border-top: 4px solid var(--ink); }
+#content ul.lessons strong { display: block; margin-bottom: .25rem; font-size: 1.125rem; }
+
+@media (max-width: 44rem) {
+  .costs thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .costs, .costs tbody, .costs tr, .costs th, .costs td { display: block; width: auto !important; }
+  .costs tr { padding: 1rem 0; border-bottom: 1px solid var(--rule); }
+  .costs th, .costs td { padding: 0; border: 0; }
+  .costs tbody th { margin-bottom: .5rem; font-size: 1.0625rem; }
+  .costs tbody td:nth-child(2) { margin-bottom: .5rem; }
+  .costs tbody td:nth-child(2)::before { content: "Obvious way: "; font-weight: 650; color: var(--ink); }
+  .costs tbody td:last-child::before { content: "Instead: "; font-weight: 650; }
+  .o { white-space: normal; }
+}
+
 .fig-hint { display: none; }
 @media (max-width: 44rem) {
   .fig { margin-bottom: .5rem; }

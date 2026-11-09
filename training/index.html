@@ -38,7 +38,7 @@
   <nav class="toc" aria-label="On this page">
     <p class="toc-title">Contents</p>
     <ol>
-      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-local-first-account-optional-and-later">1. Local first, account optional and later</a></li><li class="toc-sub"><a href="#2-sync-as-one-snapshot-last-write-wins">2. Sync as one snapshot, last write wins</a></li><li class="toc-sub"><a href="#3-the-scheduler-is-not-mine-on-purpose">3. The scheduler is not mine, on purpose</a></li><li class="toc-sub"><a href="#4-difficulty-comes-from-the-rule-not-from-the-numbers">4. Difficulty comes from the rule, not from the numbers</a></li><li><a href="#what-it-claims-and-what-it-refuses-to">What it claims, and what it refuses to</a></li>
+      <li><a href="#what-i-built">What I built</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#architecture">Architecture</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-local-first-account-optional-and-later">1. Local first, account optional and later</a></li><li class="toc-sub"><a href="#2-sync-as-one-snapshot-last-write-wins">2. Sync as one snapshot, last write wins</a></li><li class="toc-sub"><a href="#3-the-scheduler-is-not-mine-on-purpose">3. The scheduler is not mine, on purpose</a></li><li class="toc-sub"><a href="#4-difficulty-comes-from-the-rule-not-from-the-numbers">4. Difficulty comes from the rule, not from the numbers</a></li><li><a href="#cost-and-complexity">Cost and complexity</a></li><li><a href="#what-it-claims-and-what-it-refuses-to">What it claims, and what it refuses to</a></li>
     </ol>
   </nav>
   <main id="content">
@@ -126,6 +126,18 @@
     <dt>Chose</dt><dd>Subtlety. Operands stay small and the underlying rule gets less obvious as the level rises; each task type carries its own level configuration instead of a shared global difficulty, because "harder" means something different for a span task than for a pattern task. And there is a level picker, so someone who is already capable starts high instead of grinding up from the bottom — making a user spend a week below their capacity is not caution, it is the one thing that makes the training useless.</dd>
     <dt>Cost</dt><dd>Every task type is tuned by hand and the levels are not calibrated against each other, so level 6 in one exercise is not level 6 in another. Fixing that properly needs data from real users, which is a reason to leave it visible rather than pretend the scale is uniform.</dd>
   </dl>
+</section>
+<section id="cost-and-complexity">
+<h2>Cost and complexity</h2>
+<p>The whole application runs in the browser, so every cost is paid on the user's device or not at all.</p>
+<div class="costs-wrap"><table class="costs">
+  <thead><tr><th scope="col">What grows</th><th scope="col">The obvious way</th><th scope="col">What it does instead</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Scheduling a review</th><td>A hand-written heuristic.</td><td>The published scheduling algorithm, configured rather than reimplemented. Each answer updates one card's state: <span class="o">O(1)</span> per review.</td></tr>
+    <tr><th scope="row">Statistics</th><td>Store aggregates on a server and keep them in sync.</td><td>Computed in the browser from the review history, <span class="o">O(n)</span> in the number of reviews, so there is nothing to sync and nothing to drift.</td></tr>
+    <tr><th scope="row">Syncing two devices</th><td>Per-item sync with conflict resolution.</td><td>One snapshot per user, written as an upsert, last write wins. The rare overlapping session loses work by design, a bounded loss instead of an unbounded risk to the scheduler's state.</td></tr>
+  </tbody>
+</table></div>
 </section>
 <section id="what-it-claims-and-what-it-refuses-to" class="band">
 <h2>What it claims, and what it refuses to</h2>
