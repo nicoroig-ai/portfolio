@@ -15,12 +15,12 @@ Tokens live at the top of `assets/site.css`.
 
 | Volume | Field | Text on field | Label on paper (light / dark) |
 |---|---|---|---|
-| NR-01 Messaging | Navy `#1f2b4d` | white | `#1f2b4d` / `#8da2e0` |
-| NR-02 Purchasing | Coral `#ec6f5a` | ink | `#b5341e` / `#f08070` |
-| NR-03 Tax | Cream `#f0e5d0` | ink | `#7f6128` / `#f0e5d0` |
-| NR-04 Training | Slate `#5d7590` | white | `#4f6680` / `#8ea4bd` |
+| NR-01 Messaging | `#13203b` | white | `#13203b` / `#8aa7e0` |
+| NR-02 Purchasing | `#22447a` | white | `#22447a` / `#6b95d8` |
+| NR-03 Tax | `#3f6ea8` | white | `#3c689f` / `#6f98cb` |
+| NR-04 Training | `#a8c3e2` | ink | `#396daa` / `#a8c3e2` |
 
-Navy and coral are near-complements; cream is the rest between them; slate repeats the cool side quietly. Cream is almost the paper colour (1.14:1), so it never sits at the top or bottom of a stack, covers end on a 4px ink rule, and its decision tint is stronger (55% instead of 10%).
+One blue scale, darkest to lightest in catalogue order, chosen by Nico. A new volume takes the next step of the scale; check its text contrast in both modes. Covers end on a 4px ink rule.
 
 Colour owns whole regions: spines, covers and one colour field per write-up. Light or dark follows the visitor's system; volume colours stay the same in both. Every text pair is at least 4.5:1.
 
