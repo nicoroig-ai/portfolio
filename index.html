@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nico Roig — AI engineer. Projects and how I approached them</title>
-<meta name="description" content="Projects I've worked on and how I approached each problem: multi-tenant AI messaging, restaurant purchasing, and tax-law research automation.">
+<meta name="description" content="Projects I've worked on and how I approached each problem: multi-tenant AI messaging, restaurant purchasing, tax-law research automation, and security testing of an AI agent.">
 <link rel="canonical" href="https://nicoroig.dev/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Nico Roig">
 <meta property="og:title" content="Nico Roig — AI engineer. Projects and how I approached them">
-<meta property="og:description" content="Projects I've worked on and how I approached each problem: multi-tenant AI messaging, restaurant purchasing, and tax-law research automation.">
+<meta property="og:description" content="Projects I've worked on and how I approached each problem: multi-tenant AI messaging, restaurant purchasing, tax-law research automation, and security testing of an AI agent.">
 <meta property="og:url" content="https://nicoroig.dev/">
 <meta property="og:image" content="https://nicoroig.dev/assets/og/home.png">
 <meta property="og:image:width" content="1200">
@@ -20,7 +20,7 @@
 <link rel="preload" href="/assets/fonts/archivo-latin-standard-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/site.css">
 <script>
-(function(){var m={"#messaging":"/messaging/","#purchasing":"/purchasing/","#tax":"/tax/"};
+(function(){var m={"#messaging":"/messaging/","#purchasing":"/purchasing/","#tax":"/tax/","#security":"/security/"};
 if(m[location.hash]){location.replace(m[location.hash]);}})();
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"Nico Roig","jobTitle":"AI engineer","url":"https://nicoroig.dev/","sameAs":["https://github.com/nicoroig-ai","https://www.linkedin.com/in/nicoroigmeseguer/"]}</script>
@@ -63,6 +63,15 @@ if(m[location.hash]){location.replace(m[location.hash]);}})();
       <h2 class="spine-title">Tax-law research</h2>
       <p class="spine-result">Replaced a manual browser workflow for tax professionals, on a locked-down corporate machine with nothing installed and no credentials.</p>
       <p class="spine-meta"><span>Tax &amp; legal</span><span>Shipped</span><span>1,054 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+  <li data-book="security" style="--words:2184">
+    <a class="spine" href="/security/">
+      <span class="plate">NR-04</span>
+      <h2 class="spine-title">Agent red-teaming</h2>
+      <p class="spine-result">Attacked the messaging assistant from NR-01 in an isolated copy: 7 of 48 attacks worked in every run, and none reached another customer's data.</p>
+      <p class="spine-meta"><span>AI security</span><span>Lab study</span><span>2,184 words</span></p>
       <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
     </a>
   </li>

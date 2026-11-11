@@ -16,10 +16,11 @@ Tokens live at the top of `assets/site.css`.
 | Volume | Field | Text on field | Label on paper (light / dark) |
 |---|---|---|---|
 | NR-01 Messaging | `#13203b` | white | `#13203b` / `#8aa7e0` |
-| NR-02 Purchasing | `#3f6ea8` | white | `#3c689f` / `#6f98cb` |
-| NR-03 Tax | `#a8c3e2` | ink | `#396daa` / `#a8c3e2` |
+| NR-02 Purchasing | `#22447a` | white | `#22447a` / `#6b95d8` |
+| NR-03 Tax | `#3f6ea8` | white | `#3c689f` / `#6f98cb` |
+| NR-04 Agent red-teaming | `#a8c3e2` | ink | `#396daa` / `#a8c3e2` |
 
-One blue scale, darkest to lightest in catalogue order, chosen by Nico. `--blue-2` (`#22447a`) is defined and unused; with three volumes the scale uses steps 1, 3 and 4 for range. A new volume re-spreads the scale; check its text contrast in both modes. Covers end on a 4px ink rule.
+One blue scale, darkest to lightest in catalogue order, chosen by Nico. With four volumes each takes one step of the scale (re-spread when NR-04 was added; field and label pairs all checked at 4.5:1 or more in both modes). A new volume re-spreads the scale again; check its text contrast in both modes. Covers end on a 4px ink rule.
 
 Colour owns whole regions: spines, covers and one colour field per write-up. Light or dark follows the visitor's system; volume colours stay the same in both. Every text pair is at least 4.5:1.
 

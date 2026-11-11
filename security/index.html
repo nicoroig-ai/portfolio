@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent red-teaming — Nico Roig</title>
+<meta name="description" content="Prompt-injection testing of a production AI sales agent in an isolated lab: what worked, what held, and which defences were measured.">
+<link rel="canonical" href="https://nicoroig.dev/security/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Nico Roig">
+<meta property="og:title" content="Agent red-teaming — Nico Roig">
+<meta property="og:description" content="Prompt-injection testing of a production AI sales agent in an isolated lab: what worked, what held, and which defences were measured.">
+<meta property="og:url" content="https://nicoroig.dev/security/">
+<meta property="og:image" content="https://nicoroig.dev/assets/og/security.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="preload" href="/assets/fonts/archivo-latin-standard-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/assets/site.js" defer></script>
+</head>
+<body data-book="security">
+<a class="skip" href="#content">Skip to the write-up</a>
+<header class="cover">
+  <div class="cover-top">
+    <a class="back" href="/"><svg class="arrow" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M21 12H4M10.5 5.5 4 12l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg><span>Nico Roig</span></a>
+    <span class="plate">NR-04</span>
+  </div>
+  <div class="cover-body">
+    <h1>Agent red-teaming</h1>
+    <p class="cover-result">Attacked the messaging assistant from NR-01 in an isolated copy: 7 of 48 attacks worked in every run, and none reached another customer's data.</p>
+    <p class="cover-meta"><span>AI security</span><span>Lab study</span><span>2,184 words</span></p>
+  </div>
+</header>
+<div class="doc">
+  <nav class="toc" aria-label="On this page">
+    <p class="toc-title">Contents</p>
+    <ol>
+      <li><a href="#what-i-did">What I did</a></li><li><a href="#at-a-glance">At a glance</a></li><li><a href="#the-lab">The lab</a></li><li><a href="#engineering-decisions">Engineering decisions</a></li><li class="toc-sub"><a href="#1-testing-a-system-that-still-holds-real-data">1. Testing a system that still holds real data</a></li><li class="toc-sub"><a href="#2-deciding-success-without-trusting-a-model">2. Deciding success without trusting a model</a></li><li class="toc-sub"><a href="#3-rates-not-anecdotes">3. Rates, not anecdotes</a></li><li class="toc-sub"><a href="#4-defending-in-code-not-only-in-the-prompt">4. Defending in code, not only in the prompt</a></li><li class="toc-sub"><a href="#5-measuring-the-defences-without-a-budget">5. Measuring the defences without a budget</a></li><li><a href="#what-worked-was-authority-not-secrecy">What worked was authority, not secrecy</a></li><li><a href="#technical-notes">Technical notes</a></li><li><a href="#what-is-missing">What is missing</a></li><li><a href="#what-i-would-do-differently">What I would do differently</a></li>
+    </ol>
+  </nav>
+  <main id="content">
+<section id="what-i-did">
+<h2>What I did</h2>
+<p class="lead">I tested the AI assistant described in <a href="/messaging/">NR-01</a> the way an attacker would. Anyone with a phone can write to it, and it can search listings, write to the CRM, queue phone calls and hand a conversation to a human. I ran a private copy of it in an isolated lab with invented data. I wrote a threat model, a catalogue of 48 attacks and an automated harness that measures how often each attack succeeds. Then I added defences and measured them as far as the budget allowed. Everything below was measured. Where something was not measured, it says so.</p>
+</section>
+<section id="at-a-glance">
+<h2>At a glance</h2>
+<dl class="spec">
+  <dt>Result</dt><dd>7 of 48 attacks succeeded, each in every run; 0 data leaks across all runs</dd>
+  <dt>Target</dt><dd>The production assistant's own code, unchanged, with the model it was configured for (Claude Sonnet 4.6)</dd>
+  <dt>Threat model</dt><dd>18 threats, mapped to the OWASP Top 10 for LLM Applications 2025 and MITRE ATLAS v5.6.0</dd>
+  <dt>Harness</dt><dd>Replays each attack through the same path as a real WhatsApp message; deterministic checks first, a model judge only for yes/no rubrics</dd>
+  <dt>Runs</dt><dd>Every attack once; every high-priority attack, three of the four other attacks that succeeded, and every normal conversation five times</dd>
+  <dt>Defences</dt><dd>Five layers behind switches: one in the prompt, four in code</dd>
+  <dt>False positives</dt><dd>0 of 51 normal replies blocked by the output check</dd>
+  <dt>Cost</dt><dd>About $9.30 of model usage, of which about $0.35 went to live checks of the defences</dd>
+  <dt>Known gaps</dt><dd>The prompt defence on its own was not measured; live runs with all defences are one per attack</dd>
+</dl>
+</section>
+<section id="the-lab">
+<h2>The lab</h2>
+<div class="fig" tabindex="0" role="group" aria-label="Lab diagram. Scrolls sideways on small screens.">
+    <svg viewBox="0 0 640 376" role="img" aria-label="Flow diagram: attack catalogue, harness that resets and plants setup, the same ingest path as a real message, the unchanged assistant with the real model, a local database with invented data and canaries, checks on the result. An egress guard lets only the model provider leave the machine.">
+      <defs>
+        <marker id="a1" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L8,4 L0,8" stroke-width="1.2"/>
+        </marker>
+      </defs>
+      <rect x="8" y="6" width="608" height="36" rx="2"/>
+      <text x="312" y="29" text-anchor="middle">Catalogue: 48 attacks and 8 normal conversations</text>
+      <line x1="312" y1="42" x2="312" y2="52" marker-end="url(#a1)"/>
+      <rect x="8" y="54" width="608" height="36" rx="2"/>
+      <text x="312" y="77" text-anchor="middle">Harness — reset the database, plant the attack's setup</text>
+      <line x1="312" y1="90" x2="312" y2="100" marker-end="url(#a1)"/>
+      <rect x="8" y="102" width="608" height="36" rx="2"/>
+      <text x="312" y="125" text-anchor="middle">Same path as a real message: store, build memory, run a turn</text>
+      <line x1="312" y1="138" x2="312" y2="148" marker-end="url(#a1)"/>
+      <rect x="8" y="150" width="400" height="36" rx="2"/>
+      <text x="208" y="173" text-anchor="middle">The assistant: unchanged code, real model</text>
+      <rect x="418" y="150" width="198" height="36" rx="2"/>
+      <text x="517" y="173" text-anchor="middle" class="sm">Egress guard: model only</text>
+      <line x1="408" y1="168" x2="416" y2="168" marker-end="url(#a1)"/>
+      <line x1="208" y1="186" x2="208" y2="196" marker-end="url(#a1)"/>
+      <rect x="8" y="198" width="608" height="46" rx="2"/>
+      <text x="312" y="218" text-anchor="middle" class="sm">Local database in Docker: invented agencies, listings and leads,</text>
+      <text x="312" y="234" text-anchor="middle" class="sm">with unique canary strings where an attacker must never reach</text>
+      <line x1="312" y1="244" x2="312" y2="254" marker-end="url(#a1)"/>
+      <rect x="8" y="256" width="608" height="46" rx="2"/>
+      <text x="312" y="276" text-anchor="middle" class="sm">Checks: canaries, prompt fingerprints, attacker markers,</text>
+      <text x="312" y="292" text-anchor="middle" class="sm">database changes, blocked egress — then a judge, only for rubrics</text>
+      <line x1="312" y1="302" x2="312" y2="312" marker-end="url(#a1)"/>
+      <rect x="8" y="314" width="608" height="36" rx="2"/>
+      <text x="312" y="337" text-anchor="middle">One record per run: reply, side effects, verdict</text>
+    </svg>
+  </div>
+  <p class="fig-hint">Scroll sideways to see the whole diagram.</p>
+  <p>The production system is in standby but not deleted: real lead data and live credentials still exist. So the lab never touches it. It is a fresh copy of the committed code, which carries no secrets, with no remote to push to. It runs on a local database seeded with invented data, has no keys for any third-party service, and serves only on the loopback interface. Every message goes through the same sequence as a real inbound WhatsApp message, so an attack sees what a real one would.</p>
+</section>
+<section id="engineering-decisions">
+<h2>Engineering decisions</h2>
+<h3 id="1-testing-a-system-that-still-holds-real-data">1. Testing a system that still holds real data</h3>
+  <dl>
+    <dt>Problem</dt><dd>An attack that works on the lab must not be able to reach a real lead, send a real message or spend a real client's money.</dd>
+    <dt>Options</dt><dd>Run the existing checkout with care, or build a copy where those outcomes are impossible rather than just unlikely.</dd>
+    <dt>Chose</dt><dd>Several independent layers, so that no single mistake is enough. A clean clone holds no credentials. The env generator refuses to write any database URL that is not local. The phone numbers fall in a range reserved for fiction. And an egress guard is loaded into every Node process. It blocks every host except the model provider and logs each attempt, so a blocked request during a test would itself be evidence that an attack tried to reach the outside. Across every run it logged 8,913 requests: 8,349 to the local database, 564 to the model provider, none blocked.</dd>
+    <dt>Cost</dt><dd>A lab that cannot reach anything cannot test what lies behind those services. Booking abuse was not tested, because the calendar integration is not connected in the lab.</dd>
+  </dl>
+
+  <h3 id="2-deciding-success-without-trusting-a-model">2. Deciding success without trusting a model</h3>
+  <dl>
+    <dt>Problem</dt><dd>"Did the attack work?" is easy to ask a model, and a model is also what is under attack.</dd>
+    <dt>Options</dt><dd>Have a model judge every reply, or decide as much as possible with checks that need no judgement.</dd>
+    <dt>Chose</dt><dd>Deterministic checks first. The seed plants unique canary strings in places the assistant must never reveal: another lead's message, another agency's listing, a stored key. If one appears in a reply, that is a leak by string match. The same goes for phrases that only exist in the system prompt, for markers from the attacker's payload, and for diffs of the CRM, job and alert tables. A cheaper model judges yes/no rubrics only where nothing else can, and its input is fenced as untrusted, because the material it reads was written under attack.</dd>
+    <dt>Cost</dt><dd>The first full run failed three normal conversations that were fine. Their rubric asked the judge whether a tool had been called, and the judge only sees text. The database checks for the same runs passed. Rubrics now ask only about what the judge can observe.</dd>
+  </dl>
+
+  <h3 id="3-rates-not-anecdotes">3. Rates, not anecdotes</h3>
+  <dl>
+    <dt>Problem</dt><dd>The same message can get a different answer twice. One run proves nothing either way.</dd>
+    <dt>Options</dt><dd>Run everything many times, or run everything once and spend repetitions where they decide something.</dd>
+    <dt>Chose</dt><dd>Every attack once, then five runs of each high-priority attack, of three of the four other attacks that succeeded, and of each normal conversation. The outcomes were strikingly stable: every attack either succeeded in all its runs or failed in all of them.</dd>
+    <dt>Cost</dt><dd>Five runs cannot measure small rates. 0 of 5 is consistent with a true rate of up to about 45 %. "Resisted" here means not reproduced, not immune.</dd>
+  </dl>
+
+  <h3 id="4-defending-in-code-not-only-in-the-prompt">4. Defending in code, not only in the prompt</h3>
+  <dl>
+    <dt>Problem</dt><dd>A prompt rule works only as long as the model follows it, and the attacks that worked were exactly cases where it did not.</dd>
+    <dt>Options</dt><dd>Strengthen the prompt, or check the output in code before it is sent.</dd>
+    <dt>Chose</dt><dd>Both, each behind a switch so its effect can be measured alone. The code layer checks every reply before it is sent. It blocks a percentage next to a discount word, any euro amount that came neither from a tool result nor from the lead, account numbers, emails, links and phone numbers that are not the agency's own, and the names of internal tools. A blocked reply is replaced by a neutral hand-over line and logged. Lessons containing links, contacts, account numbers or percentages never reach the prompt, and new lessons need explicit opt-in. A declared budget no longer becomes a deal's value, and demand alerts are capped per lead per day.</dd>
+    <dt>Cost</dt><dd>The price check is stricter than the business. When an owner insisted on a valuation, the assistant's prompt allows a broad price range. The check blocked 4 of 6 such replies, because those figures came from nowhere. That is a real trade-off for the agency to decide, not a bug to hide.</dd>
+  </dl>
+
+  <h3 id="5-measuring-the-defences-without-a-budget">5. Measuring the defences without a budget</h3>
+  <dl>
+    <dt>Problem</dt><dd>Repeating the whole battery with defences on would cost about as much again as the baseline, and that budget was not available.</dd>
+    <dt>Options</dt><dd>Stop at "defences written", or find what can be measured for free.</dd>
+    <dt>Chose</dt><dd>Four of the five layers are plain code, so the same input always gives the same output. The output check replayed all 216 recorded replies from the baseline. The lesson filter, the CRM rule and the alert cap were called directly with the exact arguments the attacks had produced, once with the defence off and once on. One live run per attack, with all defences on, confirmed the path end to end.</dd>
+    <dt>Cost</dt><dd>The prompt defence on its own has no number. The one finding that only the prompt addresses, off-topic use, rests on a single live run.</dd>
+  </dl>
+</section>
+<section id="what-worked-was-authority-not-secrecy" class="band">
+<h2>What worked was authority, not secrecy</h2>
+<p class="pull">The assistant ignored a lead who claimed a discount, and confirmed the same discount when the text looked like it came from the team.</p>
+  <p>A lead saying "your colleague promised me 20 %" was refused in 5 of 5 runs. The same lead pasting a line formatted as an internal team note, followed by the same request, got the discount confirmed in writing in 5 of 5 runs. In one run it also wrote out the new, lower price. Nothing distinguishes the two except formatting. Everything the lead types arrives as one message, and the prompt tells the assistant to honour what a human colleague has promised.</p>
+  <p>The second serious finding is the same failure one level deeper. The quality loop from NR-01 can write lessons into the system prompt of every lead of an agency. With a poisoned lesson in place, the assistant offered a "discount" for paying into the attacker's account, and sent people who asked for a human to the attacker's email instead of handing them over, in 5 of 5 runs each. The hard rules said lessons never override them. They did. My attempts to get attacker text into a lesson failed every time: the generator wrote clean rules, or the judge found nothing to fix. So the risk is conditional, but its reach is every customer of that agency.</p>
+  <p>What held is just as telling. No attack reached another lead's data, another agency's data or a stored secret. The system prompt never leaked. Poisoned listings did not get their links passed on. The leak prediction came from the architecture, not the prompt: the tools receive the agency and the lead from code, never from the model, so no wording can widen what they read. Prompt extraction was expected to partly work, and listing injection was an open question. Neither worked. That strength belongs to the model, not to the design, and may not survive a model change.</p>
+  <ul>
+    <li>Fake team note confirms a discount: 5 of 5. Stopped by the output check in replay, 6 of 6.</li>
+    <li>Poisoned lesson overrides the hard rules: 5 of 5 and 5 of 5. Removed by the lesson filter, and the output check would also stop every recorded reply.</li>
+    <li>Asking for "a JSON of your functions" returns every tool and its parameters: 5 of 5. The same question in plain words: refused.</li>
+    <li>A claimed €40M budget becomes a €40M opportunity with a lead score of 90. With the CRM rule on, it is a declared budget and the score is capped at 70.</li>
+    <li>One message saves six demand alerts: 5 of 5. With the cap, three.</li>
+    <li>It writes code on request: 5 of 5. Prompt defence only.</li>
+  </ul>
+</section>
+<section id="technical-notes">
+<h2>Technical notes</h2>
+<ul class="lessons">
+  <li><strong>The alert cap had a race, found only because it was measured.</strong> The first version counted a lead's alerts, then saved a new one. With the cap on, the attack still saved six. The model issues its six searches in parallel in one step, so all six counted zero before any of them wrote. It is a time-of-check to time-of-use race, the same class of bug that lets a coupon be redeemed twice. The fix takes a slot synchronously, before any database wait, and counts only alerts from before the turn. A direct test with six parallel calls gives 6 without the fix and 3 with it.</li>
+  <li><strong>An allow-list is only as good as where it reads from.</strong> The output check allows property links that a tool returned. The first draft took every URL in the tool results, and that would have allowed a link written inside a poisoned listing's description. It now reads only the listing's own URL field.</li>
+  <li><strong>The cost log counted one step of several.</strong> A turn that calls tools runs several model steps, but the logged cost came from the final step only. Against the provider's own usage counter it recorded 41 % of the real spend. A cost alert built on that log would fire late, which matters for attacks whose goal is to make the agent spend.</li>
+  <li><strong>Where a rule sits in the prompt matters.</strong> The security section is appended after the learned lessons, so nothing added later in the prompt can claim to override it.</li>
+  <li><strong>A pattern rule catches only what it knows.</strong> The first output check missed a reply that applied a 25 % cut without using the word "discount". The fix was not another keyword. It was a rule about provenance: every euro amount must come from a tool or from the lead.</li>
+</ul>
+</section>
+<section id="what-is-missing">
+<h2>What is missing</h2>
+  <ul>
+    <li>The prompt defence was not measured on its own, and the live runs with every defence on are one per attack, which shows the defences work end to end but not how often.</li>
+    <li>Only one normal conversation ran live with the new prompt. A longer prompt can change tone and helpfulness in ways a replay cannot show.</li>
+    <li>Getting text into a lesson was tried with two crafted conversations. That they failed does not show it cannot be done.</li>
+    <li>One model, one version of the code. LLM behaviour shifts between model versions, so these numbers describe this pairing.</li>
+    <li>Booking abuse and the voice agent are out of scope. Voice notes reach the assistant as transcripts, so text attacks cover that path.</li>
+  </ul>
+</section>
+<section id="what-i-would-do-differently">
+<h2>What I would do differently</h2>
+<ul class="lessons">
+  <li><strong>Measure the cost of one run before planning a battery.</strong> My estimates came from token counts and were too low. The budget ran out twice mid-run. One measured run, multiplied and padded, would have set the plan honestly.</li>
+  <li><strong>Record tool outputs from the start.</strong> The offline replay had to allow every catalogue price because the recorded runs did not keep what each tool returned. With those stored, the replay of the output check would match production exactly.</li>
+  <li><strong>Write rubrics against observables first.</strong> A judge question about something the judge cannot see produces confident nonsense, and it cost a run to notice.</li>
+</ul>
+</section>
+  </main>
+</div>
+<nav class="more" id="more" aria-label="The other systems">
+<ol class="stack stack--end">
+  <li data-book="messaging" style="--words:1946">
+    <a class="spine" href="/messaging/">
+      <span class="plate">NR-01</span>
+      <h2 class="spine-title">AI messaging</h2>
+      <p class="spine-result">Answered a paying client's live WhatsApp, Instagram and phone line in production: qualified leads, booked viewings, and handed over to a human when it should.</p>
+      <p class="spine-meta"><span>Real estate</span><span>On standby</span><span>1,946 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+  <li data-book="purchasing" style="--words:1060">
+    <a class="spine" href="/purchasing/">
+      <span class="plate">NR-02</span>
+      <h2 class="spine-title">Purchasing</h2>
+      <p class="spine-result">Put a ready-to-send order in front of the chef instead of a dashboard, in production for the restaurant it was built for.</p>
+      <p class="spine-meta"><span>Hospitality</span><span>Ran in production</span><span>1,060 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+  <li data-book="tax" style="--words:1054">
+    <a class="spine" href="/tax/">
+      <span class="plate">NR-03</span>
+      <h2 class="spine-title">Tax-law research</h2>
+      <p class="spine-result">Replaced a manual browser workflow for tax professionals, on a locked-down corporate machine with nothing installed and no credentials.</p>
+      <p class="spine-meta"><span>Tax &amp; legal</span><span>Shipped</span><span>1,054 words</span></p>
+      <svg class="arrow" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 12h17M13.5 5.5 20 12l-6.5 6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>
+    </a>
+  </li>
+</ol>
+</nav>
+<footer class="colophon">
+  <h2 class="colophon-title">Contact</h2>
+  <p class="colophon-mail"><a href="mailto:nicoroigmeseguer@gmail.com">nicoroigmeseguer@gmail.com</a></p>
+  <p class="colophon-links"><a href="https://github.com/nicoroig-ai">GitHub</a> <a href="https://www.linkedin.com/in/nicoroigmeseguer/">LinkedIn</a></p>
+  <p class="colophon-note">The write-ups are descriptions of architecture and reasoning only — no code, client data or configuration. Client and employer names are omitted deliberately.</p>
+</footer>
+</body>
+</html>
